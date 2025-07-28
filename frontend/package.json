@@ -1,0 +1,61 @@
+{
+  "name": "codemitra-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for CodeMitra collaborative compiler",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "next": "^14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "next-auth": "^4.24.5",
+    "@monaco-editor/react": "^4.6.0",
+    "socket.io-client": "^4.7.4",
+    "axios": "^1.6.2",
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
+    "clsx": "^2.0.0",
+    "tailwindcss": "^3.3.6",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "react-hot-toast": "^2.4.1",
+    "zustand": "^4.4.7",
+    "react-hook-form": "^7.48.2",
+    "@hookform/resolvers": "^3.3.2",
+    "yup": "^1.4.0",
+    "framer-motion": "^10.16.16",
+    "lucide-react": "^0.294.0",
+    "simple-peer": "^9.11.1",
+    "react-resizable-panels": "^0.0.55",
+    "react-split-pane": "^0.1.92",
+    "uuid": "^9.0.1",
+    "js-cookie": "^3.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/uuid": "^9.0.7",
+    "@types/js-cookie": "^3.0.6",
+    "@types/simple-peer": "^9.11.8",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.0.4",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.8",
+    "jest-environment-jsdom": "^29.7.0",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "^6.1.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

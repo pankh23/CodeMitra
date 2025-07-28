@@ -1,0 +1,124 @@
+name: Performance Monitoring & Health Checks
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+
+    - name: Install K6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+
+    - name: Run Performance Tests
+      run: |
+        k6 run --out json=performance-results.json tests/performance/load-test.js
+      env:
+        TARGET_URL: ${{ secrets.PRODUCTION_URL || 'http://localhost' }}
+
+    - name: Upload Performance Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: performance-results.json
+
+  health-check:
+    name: Production Health Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Health Check - Frontend
+      run: |
+        curl -f ${{ secrets.PRODUCTION_URL || 'http://localhost' }}/health || exit 1
+
+    - name: Health Check - API
+      run: |
+        curl -f ${{ secrets.PRODUCTION_URL || 'http://localhost' }}/api/health || exit 1
+
+    - name: Database Connection Test
+      run: |
+        curl -f ${{ secrets.PRODUCTION_URL || 'http://localhost' }}/api/health/db || exit 1
+
+    - name: Redis Connection Test
+      run: |
+        curl -f ${{ secrets.PRODUCTION_URL || 'http://localhost' }}/api/health/redis || exit 1
+
+    - name: WebSocket Connection Test
+      run: |
+        npm install -g wscat
+        echo "test" | wscat -c ${{ secrets.PRODUCTION_URL || 'ws://localhost' }}/socket.io/
+
+  uptime-monitor:
+    name: Uptime Monitoring
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check Service Uptime
+      uses: srt32/uptime-monitor-action@v1
+      with:
+        url-to-hit: ${{ secrets.PRODUCTION_URL || 'http://localhost' }}
+        expected-statuses: "200,301,302"
+
+    - name: Notify on Downtime
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: '#alerts'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        message: "🚨 CodeMitra is down! Service health check failed."
+
+  metrics-collection:
+    name: Collect Application Metrics
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Collect System Metrics
+      run: |
+        # Collect CPU, Memory, Disk usage
+        docker stats --no-stream > system-metrics.txt
+        
+        # Collect application-specific metrics
+        curl -s ${{ secrets.PRODUCTION_URL || 'http://localhost' }}/api/metrics > app-metrics.json
+
+    - name: Upload Metrics
+      uses: actions/upload-artifact@v3
+      with:
+        name: system-metrics
+        path: |
+          system-metrics.txt
+          app-metrics.json
+
+  security-monitoring:
+    name: Security Monitoring
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: SSL Certificate Check
+      run: |
+        echo | openssl s_client -connect ${{ secrets.PRODUCTION_DOMAIN || 'localhost' }}:443 2>/dev/null | openssl x509 -noout -dates
+
+    - name: Port Security Scan
+      run: |
+        nmap -sS -O ${{ secrets.PRODUCTION_DOMAIN || 'localhost' }}
+
+    - name: HTTP Security Headers Check
+      run: |
+        curl -I ${{ secrets.PRODUCTION_URL || 'http://localhost' }} | grep -E "(X-Frame-Options|X-Content-Type-Options|X-XSS-Protection|Strict-Transport-Security)"

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: codemitra-postgres
+    environment:
+      POSTGRES_DB: codemitra
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - codemitra_network
+    restart: unless-stopped
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: codemitra-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - codemitra_network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Adminer for database management
+  adminer:
+    image: adminer
+    container_name: codemitra-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - codemitra_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  codemitra_network:
+    driver: bridge

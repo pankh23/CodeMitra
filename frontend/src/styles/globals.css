@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;600&display=swap');
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-secondary-600 text-white hover:bg-secondary-700 focus:ring-secondary-500;
+  }
+  
+  .btn-outline {
+    @apply btn border border-input bg-transparent hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-ghost {
+    @apply btn hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-danger {
+    @apply btn bg-error-600 text-white hover:bg-error-700 focus:ring-error-500;
+  }
+  
+  .input {
+    @apply flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  
+  .card {
+    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+  }
+  
+  .card-header {
+    @apply flex flex-col space-y-1.5 p-6;
+  }
+  
+  .card-content {
+    @apply p-6 pt-0;
+  }
+  
+  .card-footer {
+    @apply flex items-center p-6 pt-0;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Monaco Editor Theme Overrides */
+.monaco-editor {
+  @apply font-mono;
+}
+
+.monaco-editor .margin {
+  @apply bg-gray-50 dark:bg-gray-800;
+}
+
+.monaco-editor .monaco-editor-background {
+  @apply bg-white dark:bg-gray-900;
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Loading animations */
+.loading-spinner {
+  @apply animate-spin rounded-full border-4 border-gray-200 border-t-primary-600;
+}
+
+.loading-dots {
+  @apply flex space-x-1;
+}
+
+.loading-dots > div {
+  @apply h-2 w-2 bg-primary-600 rounded-full animate-bounce;
+}
+
+.loading-dots > div:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.loading-dots > div:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+/* Room layout */
+.room-layout {
+  @apply grid grid-cols-1 lg:grid-cols-4 gap-4 h-screen;
+}
+
+.editor-panel {
+  @apply lg:col-span-3 flex flex-col;
+}
+
+.sidebar-panel {
+  @apply lg:col-span-1 flex flex-col space-y-4;
+}
+
+/* Video call styles */
+.video-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 gap-2;
+}
+
+.video-container {
+  @apply relative bg-gray-900 rounded-lg overflow-hidden aspect-video;
+}
+
+.video-controls {
+  @apply absolute bottom-2 left-2 right-2 flex justify-center space-x-2;
+}
+
+/* Chat styles */
+.chat-message {
+  @apply flex flex-col space-y-1 p-3 rounded-lg;
+}
+
+.chat-message.own {
+  @apply bg-primary-100 dark:bg-primary-900 ml-4;
+}
+
+.chat-message.other {
+  @apply bg-gray-100 dark:bg-gray-800 mr-4;
+}
+
+.chat-message.system {
+  @apply bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-center text-sm italic;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .room-layout {
+    @apply grid-cols-1;
+  }
+  
+  .sidebar-panel {
+    @apply order-first;
+  }
+  
+  .editor-panel {
+    @apply order-last;
+  }
+}
