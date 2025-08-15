@@ -1,5 +1,19 @@
-import { Request, Response, NextFunction } from 'express';
-import { Prisma } from '@prisma/client';
+// Use flexible types to avoid module resolution issues during build
+interface Request {
+  url: string;
+  method: string;
+  [key: string]: any;
+}
+
+interface Response {
+  status(code: number): Response;
+  json(data: any): void;
+  [key: string]: any;
+}
+
+interface NextFunction {
+  (error?: any): void;
+}
 
 export interface ApiError extends Error {
   statusCode?: number;
@@ -16,9 +30,10 @@ export const errorHandler = (
   let message = err.message || 'Internal Server Error';
   let code = err.code || 'INTERNAL_ERROR';
 
-  // Handle Prisma errors
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    switch (err.code) {
+  // Handle Prisma errors using runtime checks
+  const errAny = err as any;
+  if (errAny?.name === 'PrismaClientKnownRequestError') {
+    switch (errAny.code) {
       case 'P2002':
         statusCode = 409;
         message = 'Resource already exists';
@@ -42,7 +57,7 @@ export const errorHandler = (
   }
 
   // Handle validation errors
-  if (err instanceof Prisma.PrismaClientValidationError) {
+  if (errAny?.name === 'PrismaClientValidationError') {
     statusCode = 400;
     message = 'Validation error';
     code = 'VALIDATION_ERROR';

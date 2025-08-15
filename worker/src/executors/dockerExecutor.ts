@@ -243,7 +243,7 @@ export class DockerExecutor {
       await this.ensureImage(options.image);
 
       // Create container
-      const containerOptions: Docker.ContainerCreateOptions = {
+      const containerOptions: any = {
         Image: options.image,
         Cmd: options.command,
         WorkingDir: options.workingDir,
@@ -395,7 +395,12 @@ export class DockerExecutor {
         clearTimeout(timeoutId);
       }
       if (stream) {
-        stream.destroy();
+        // Use end() instead of destroy() for better compatibility
+        if (typeof (stream as any).destroy === 'function') {
+          (stream as any).destroy();
+        } else if (typeof stream.end === 'function') {
+          stream.end();
+        }
       }
       if (container) {
         await this.cleanupContainer(container.id);

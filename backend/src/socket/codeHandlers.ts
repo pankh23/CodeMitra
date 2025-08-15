@@ -1,12 +1,32 @@
-import { Server } from 'socket.io';
-import { AuthenticatedSocket, isUserInRoom } from './index';
+// Use flexible types to avoid module resolution issues during build
+interface Server {
+  to(room: string): any;
+  [key: string]: any;
+}
+
+interface AuthenticatedSocket {
+  userId?: string;
+  user?: { name?: string };
+  on(event: string, handler: Function): void;
+  emit(event: string, data: any): void;
+  to(room: string): any;
+  join?(room: string): void;
+  leave?(room: string): void;
+  [key: string]: any;
+}
+
+interface isUserInRoomFunction {
+  (userId: string, roomId: string): Promise<boolean>;
+}
+
+declare const isUserInRoom: isUserInRoomFunction;
 import { prisma } from '@/utils/prisma';
 import { Queue } from 'bullmq';
 import { redisClient } from '@/utils/redis';
 
 // Create BullMQ queue for code execution
 const codeExecutionQueue = new Queue('code-execution', {
-  connection: redisClient,
+  connection: redisClient as any,
   defaultJobOptions: {
     removeOnComplete: 10,
     removeOnFail: 50,

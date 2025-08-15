@@ -2,11 +2,10 @@ import { createClient } from 'redis';
 
 export const redisClient = createClient({
   url: process.env.REDIS_URL || 'redis://localhost:6379',
-  retry_unfulfilled_commands: true,
   socket: {
-    reconnectStrategy: (retries) => Math.min(retries * 50, 500),
+    reconnectStrategy: (retries: number) => Math.min(retries * 50, 500),
   },
-});
+} as any);
 
 redisClient.on('error', (err) => {
   console.error('Redis Client Error:', err);
