@@ -3,7 +3,7 @@
 This guide covers various deployment options for CodeMitra, from local development to production environments.
 
 ## 📋 Table of Contents
-##helloim pankh
+##helloim pankhuri
 - [Prerequisites](#prerequisites)
 - [Local Development](#local-development)
 - [Docker Deployment](#docker-deployment)
