@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
-import { prisma } from '@/utils/prisma';
-import { asyncHandler } from '@/middleware/errorHandler';
-import { validate, loginSchema, registerSchema } from '@/utils/validation';
-import { hashPassword, comparePassword } from '@/utils/password';
-import { generateToken } from '@/utils/jwt';
-import { AuthenticatedRequest } from '@/middleware/auth';
+import { prisma } from '../utils/prisma';
+import { asyncHandler } from '../middleware/errorHandler';
+import { validate, loginSchema, registerSchema } from '../utils/validation';
+import { hashPassword, comparePassword } from '../utils/password';
+import { generateToken } from '../utils/jwt';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 const authRoutes = express.Router();
 
@@ -27,7 +27,7 @@ authRoutes.post('/register', validate(registerSchema), asyncHandler(async (req: 
     });
 
     const token = generateToken(user);
-    res.status(201).json({ success: true, token, user });
+    return res.status(201).json({ success: true, token, user });
 }));
 
 // User login
@@ -40,7 +40,7 @@ authRoutes.post('/login', validate(loginSchema), asyncHandler(async (req: Reques
     }
 
     const token = generateToken(user);
-    res.status(200).json({ success: true, token, user });
+    return res.status(200).json({ success: true, token, user });
 }));
 
 // Get current user
@@ -49,7 +49,7 @@ authRoutes.get('/me', asyncHandler(async (req: AuthenticatedRequest, res: Respon
         return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    res.status(200).json({ success: true, user: req.user });
+    return res.status(200).json({ success: true, user: req.user });
 }));
 
 export { authRoutes };

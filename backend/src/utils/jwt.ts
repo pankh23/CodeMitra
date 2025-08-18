@@ -1,8 +1,4 @@
-// Use flexible types to avoid module resolution issues during build
-declare const jwt: {
-  sign(payload: any, secret: any, options?: any): string;
-  verify(token: any, secret: any): any;
-};
+import jwt from 'jsonwebtoken';
 
 // Accept a looser user type to avoid dependency on external modules during build
 interface UserLike { 
@@ -28,7 +24,7 @@ export const generateToken = (user: UserLike): string => {
 
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
-  });
+  } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JwtPayload | null => {
@@ -48,7 +44,7 @@ export const generateRefreshToken = (user: UserLike): string => {
 
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: '30d',
-  });
+  } as jwt.SignOptions);
 };
 
 export const extractTokenFromHeader = (authHeader: string | undefined): string | null => {

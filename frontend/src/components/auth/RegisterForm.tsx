@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -211,13 +212,13 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             <div className="mt-2">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-gray-600 dark:text-gray-400">Password strength:</span>
-                <span className={`text-xs font-medium ${passwordStrength.color.replace('bg-', 'text-')}`}>
+                <span className={`text-xs font-medium ${passwordStrength.color?.replace('bg-', 'text-') || 'text-gray-500'}`}>
                   {passwordStrength.label}
                 </span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div
-                  className={`${passwordStrength.color} h-2 rounded-full transition-all duration-300`}
+                  className={`${passwordStrength.color || 'bg-gray-300'} h-2 rounded-full transition-all duration-300`}
                   style={{ width: `${passwordStrength.strength}%` }}
                 />
               </div>

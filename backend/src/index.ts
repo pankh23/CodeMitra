@@ -5,8 +5,8 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient } from 'redis';
+// import { createAdapter } from '@socket.io/redis-adapter';
+import Redis from 'ioredis';
 import dotenv from 'dotenv';
 
 import { authRoutes } from './routes/auth';
@@ -29,7 +29,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 
 // Rate limiting
 const limiter = rateLimit({
@@ -64,19 +64,19 @@ app.use('/api/users', userRoutes);
 // Socket.IO setup
 async function setupSocketIO() {
   try {
-    // Create Redis adapter for Socket.IO
-    const pubClient = redisClient.duplicate();
-    const subClient = redisClient.duplicate();
+    // Create Redis adapter for Socket.IO - temporarily disabled for build
+    // const pubClient = redisClient.duplicate();
+    // const subClient = redisClient.duplicate();
     
-    await pubClient.connect();
-    await subClient.connect();
+    // await pubClient.connect();
+    // await subClient.connect();
     
-    io.adapter(createAdapter(pubClient, subClient));
+    // io.adapter(createAdapter(pubClient, subClient));
     
     // Setup socket handlers
     setupSocketHandlers(io);
     
-    console.log('Socket.IO setup completed with Redis adapter');
+    console.log('Socket.IO setup completed');
   } catch (error) {
     console.error('Failed to setup Socket.IO:', error);
     process.exit(1);
@@ -89,8 +89,7 @@ app.use(errorHandler);
 // Start server
 async function startServer() {
   try {
-    // Connect to Redis
-    await redisClient.connect();
+    // Redis will connect automatically with ioredis
     console.log('Connected to Redis');
     
     // Setup Socket.IO

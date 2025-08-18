@@ -6,12 +6,12 @@ import ChatMessage, { ChatMessageProps } from './ChatMessage';
 interface ChatRoomProps {
   messages: ChatMessageProps[];
   currentUser: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string) => void;
 }
 
 export default function ChatRoom({ messages, currentUser, onSendMessage }: ChatRoomProps) {
   const [newMessage, setNewMessage] = useState('');
-  const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value);

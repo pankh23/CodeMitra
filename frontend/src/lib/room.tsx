@@ -211,7 +211,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       setError(null);
-      await api.post(`/api/rooms/${roomId}/leave`);
+      await api.post(`/api/rooms/${roomId}/leave`, {});
       socketLeaveRoom(roomId);
       setCurrentRoom(null);
       setCode('');

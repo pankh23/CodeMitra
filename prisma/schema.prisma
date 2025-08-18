@@ -20,6 +20,7 @@ model User {
   ownedRooms Room[]     @relation("RoomOwner")
   roomUsers  RoomUser[]
   chatMessages ChatMessage[]
+  executionLogs ExecutionLog[]
 
   @@map("users")
 }
@@ -28,7 +29,7 @@ model Room {
   id          String   @id @default(uuid())
   name        String
   description String?
-  password    String
+  password    String?
   isPublic    Boolean  @default(false)
   maxUsers    Int      @default(10)
   language    String   @default("javascript")
@@ -92,6 +93,7 @@ model ExecutionLog {
 
   // Relations
   userId String?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
   roomId String
   room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 

@@ -1,7 +1,5 @@
-FROM node:18-alpine
-
-# Install Docker CLI for code execution
-RUN apk add --no-cache docker-cli
+# Multi-stage build for TypeScript compilation
+FROM node:18-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
@@ -13,14 +11,41 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm install --only=production
+# Install ALL dependencies (including devDependencies for TypeScript)
+RUN npm install
+
+# Install tsc-alias for path resolution
+RUN npm install --save-dev tsc-alias
 
 # Copy source code
 COPY src ./src
 
-# Build the application
-RUN npm run build
+# Build the application and resolve path aliases
+RUN npm run build && npx tsc-alias -p tsconfig.json
+
+# Verify build output
+RUN ls -la dist/ || echo "Build failed - dist directory not created"
+
+# Production stage
+FROM node:18-alpine AS runner
+
+# Install Docker CLI for code execution
+RUN apk add --no-cache docker-cli
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm install --only=production
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs

@@ -20,13 +20,13 @@ interface isUserInRoomFunction {
 }
 
 declare const isUserInRoom: isUserInRoomFunction;
-import { prisma } from '@/utils/prisma';
+import { prisma } from '../utils/prisma';
 import { Queue } from 'bullmq';
-import { redisClient } from '@/utils/redis';
+import { redisClient } from '../utils/redis';
 
 // Create BullMQ queue for code execution
 const codeExecutionQueue = new Queue('code-execution', {
-  connection: redisClient as any,
+  connection: redisClient,
   defaultJobOptions: {
     removeOnComplete: 10,
     removeOnFail: 50,

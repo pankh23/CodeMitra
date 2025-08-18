@@ -56,11 +56,10 @@ export default function ChatInterface() {
     const message: ChatMessageProps = {
       id: Date.now().toString(),
       userId: user.id,
-      username: user.username,
+      userName: user.name,
       content,
-      timestamp: new Date(),
-      type: 'user',
-      avatar: user.avatar
+      timestamp: new Date().toISOString(),
+      userAvatar: user.avatar
     };
 
     socket.emit('sendMessage', {

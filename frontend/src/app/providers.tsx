@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { ReactNode } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/lib/auth';

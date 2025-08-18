@@ -32,7 +32,7 @@ export interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -80,7 +80,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
       newSocket.on('room:user-left', (data) => {
         console.log('User left room:', data);
-        toast.info(`${data.userName} left the room`);
+        toast(`${data.userName} left the room`);
       });
 
       newSocket.on('room:error', (data) => {
@@ -106,7 +106,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
       newSocket.on('code:execution-started', (data) => {
         console.log('Code execution started:', data);
-        toast.info('Code execution started...');
+        toast('Code execution started...');
       });
 
       newSocket.on('code:execution-result', (data) => {
@@ -158,7 +158,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
       newSocket.on('video:left-call', (data) => {
         console.log('Left video call:', data);
-        toast.info('Left video call');
+        toast('Left video call');
       });
 
       newSocket.on('video:user-joined', (data) => {
@@ -198,12 +198,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
       newSocket.on('video:screen-share-started', (data) => {
         console.log('Screen share started:', data);
-        toast.info(`${data.userName} started screen sharing`);
+        toast(`${data.userName} started screen sharing`);
       });
 
       newSocket.on('video:screen-share-stopped', (data) => {
         console.log('Screen share stopped:', data);
-        toast.info(`${data.userName} stopped screen sharing`);
+        toast(`${data.userName} stopped screen sharing`);
       });
 
       newSocket.on('video:error', (data) => {

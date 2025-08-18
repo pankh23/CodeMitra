@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket, isUserInRoom } from './index';
-import { prisma } from '@/utils/prisma';
+import { prisma } from '../utils/prisma';
 
 export const setupChatHandlers = (io: Server, socket: AuthenticatedSocket) => {
   // Send a chat message

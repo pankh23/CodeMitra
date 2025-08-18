@@ -34,15 +34,19 @@ export const createRoomSchema = Joi.object({
     'string.max': 'Room name cannot exceed 100 characters',
     'any.required': 'Room name is required',
   }),
-  description: Joi.string().max(500).optional().messages({
+  description: Joi.string().max(500).allow('').optional().messages({
     'string.max': 'Description cannot exceed 500 characters',
   }),
-  password: Joi.string().min(4).max(50).required().messages({
-    'string.min': 'Room password must be at least 4 characters long',
-    'string.max': 'Room password cannot exceed 50 characters',
-    'any.required': 'Room password is required',
+  isPublic: Joi.boolean().default(true),
+  password: Joi.alternatives().conditional('isPublic', {
+    is: false,
+    then: Joi.string().min(4).max(50).required().messages({
+      'string.min': 'Room password must be at least 4 characters long',
+      'string.max': 'Room password cannot exceed 50 characters',
+      'any.required': 'Room password is required for private rooms',
+    }),
+    otherwise: Joi.string().allow('', null).optional()
   }),
-  isPublic: Joi.boolean().default(false),
   maxUsers: Joi.number().integer().min(2).max(50).default(10).messages({
     'number.min': 'Room must allow at least 2 users',
     'number.max': 'Room cannot exceed 50 users',

@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket, isUserInRoom } from './index';
-import { prisma } from '@/utils/prisma';
+import { prisma } from '../utils/prisma';
 
 export const setupRoomHandlers = (io: Server, socket: AuthenticatedSocket) => {
   // Join a room
@@ -200,7 +200,7 @@ export const setupRoomHandlers = (io: Server, socket: AuthenticatedSocket) => {
         return;
       }
 
-      const currentUser = room.users.find(u => u.userId === userId);
+      const currentUser = room.users.find((u: { userId: string; role: string; }) => u.userId === userId);
       if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'admin')) {
         socket.emit('room:error', { message: 'You do not have permission to kick users' });
         return;

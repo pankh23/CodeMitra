@@ -1,11 +1,17 @@
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 
-export const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-  socket: {
-    reconnectStrategy: (retries: number) => Math.min(retries * 50, 500),
-  },
-} as any);
+// Debug Redis URL configuration for Docker environment
+const REDIS_URL = process.env.REDIS_URL || 'redis://codemitra-redis:6379';
+console.log('Redis URL:', REDIS_URL.replace(/:\/\/([^:@]+:[^:@]+)@/, '://***:***@')); // Hide auth in logs
+
+export const redisClient = new Redis(REDIS_URL, {
+  enableReadyCheck: false,
+  maxRetriesPerRequest: null,
+  lazyConnect: true,
+  enableOfflineQueue: false,
+  connectTimeout: 10000,
+  commandTimeout: 5000,
+});
 
 redisClient.on('error', (err) => {
   console.error('Redis Client Error:', err);

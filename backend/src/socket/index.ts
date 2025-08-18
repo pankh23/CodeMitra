@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io';
-import { verifyToken } from '@/utils/jwt';
-import { prisma } from '@/utils/prisma';
-import { redisClient } from '@/utils/redis';
+import { verifyToken } from '../utils/jwt';
+import { prisma } from '../utils/prisma';
+import { redisClient } from '../utils/redis';
 import { setupRoomHandlers } from './roomHandlers';
 import { setupCodeHandlers } from './codeHandlers';
 import { setupChatHandlers } from './chatHandlers';
@@ -47,7 +47,10 @@ export const setupSocketHandlers = (io: Server) => {
       }
 
       socket.userId = user.id;
-      socket.user = user;
+      socket.user = {
+        ...user,
+        avatar: user.avatar || undefined
+      };
       next();
     } catch (error) {
       console.error('Socket authentication error:', error);
@@ -60,7 +63,7 @@ export const setupSocketHandlers = (io: Server) => {
     console.log(`User ${socket.user?.name} connected (${socket.id})`);
 
     // Store user socket mapping in Redis
-    redisClient.setEx(`socket:${socket.userId}`, 3600, socket.id);
+    redisClient.setex(`socket:${socket.userId}`, 3600, socket.id);
 
     // Setup handlers for different features
     setupRoomHandlers(io, socket);

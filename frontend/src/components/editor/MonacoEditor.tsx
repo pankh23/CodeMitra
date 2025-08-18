@@ -114,7 +114,7 @@ export function MonacoEditor({
   const [autoSave, setAutoSave] = useState(true);
   
   const { socket } = useSocket();
-  const { room, connectedUsers } = useRoom();
+  const { currentRoom } = useRoom();
   const { user } = useAuth();
 
   // Initialize Monaco Editor
@@ -133,7 +133,7 @@ export function MonacoEditor({
       scrollBeyondLastLine: false,
       renderLineHighlight: 'all',
       cursorBlinking: 'smooth',
-      cursorSmoothCaretAnimation: true,
+      cursorSmoothCaretAnimation: 'on',
       multiCursorModifier: 'ctrlCmd',
       suggestOnTriggerCharacters: true,
       quickSuggestions: true,
@@ -448,7 +448,7 @@ export function MonacoEditor({
             className="flex items-center px-3 py-2 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
           >
             <Users className="w-4 h-4 mr-1" />
-            Users ({connectedUsers.length})
+            Users ({currentRoom?.users?.length || 0})
           </button>
         </div>
       </div>
@@ -523,16 +523,16 @@ export function MonacoEditor({
           className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
         >
           <div className="flex flex-wrap gap-2">
-            {connectedUsers.map((user) => (
+            {currentRoom?.users?.map((roomUser: any) => (
               <div
-                key={user.id}
+                key={roomUser.user.id}
                 className="flex items-center px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full"
               >
                 <div
                   className="w-3 h-3 rounded-full mr-2"
-                  style={{ backgroundColor: getUserColor(user.id) }}
+                  style={{ backgroundColor: getUserColor(roomUser.user.id) }}
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">{user.name}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{roomUser.user.name}</span>
               </div>
             ))}
           </div>
@@ -566,7 +566,7 @@ export function MonacoEditor({
             scrollBeyondLastLine: false,
             renderLineHighlight: 'all',
             cursorBlinking: 'smooth',
-            cursorSmoothCaretAnimation: true,
+            cursorSmoothCaretAnimation: 'on',
             multiCursorModifier: 'ctrlCmd',
             suggestOnTriggerCharacters: true,
             quickSuggestions: true,

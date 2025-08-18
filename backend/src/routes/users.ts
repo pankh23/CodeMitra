@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express';
-import { prisma } from '@/utils/prisma';
-import { asyncHandler } from '@/middleware/errorHandler';
-import { authenticate, AuthenticatedRequest } from '@/middleware/auth';
-import { validate, updateUserSchema, changePasswordSchema } from '@/utils/validation';
-import { hashPassword, comparePassword } from '@/utils/password';
+import { prisma } from '../utils/prisma';
+import { asyncHandler } from '../middleware/errorHandler';
+import { authenticate, AuthenticatedRequest } from '../middleware/auth';
+import { validate, updateUserSchema, changePasswordSchema } from '../utils/validation';
+import { hashPassword, comparePassword } from '../utils/password';
 
 const userRoutes = express.Router();
 
@@ -39,7 +39,7 @@ userRoutes.get('/profile',
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: user
     });
@@ -111,7 +111,7 @@ userRoutes.put('/password',
       data: { password: hashedNewPassword }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Password changed successfully'
     });
@@ -200,44 +200,90 @@ userRoutes.get('/activity',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
 
-    const [roomsCount, messagesCount, executionLogsCount, recentActivity] = await Promise.all([
-      prisma.room.count({
-        where: {
-          OR: [
-            { ownerId: userId },
-            { users: { some: { userId } } }
-          ]
-        }
-      }),
-      prisma.chatMessage.count({
-        where: { userId }
-      }),
-      prisma.executionLog.count({
-        where: { userId }
-      }),
-      prisma.executionLog.findMany({
-        where: { userId },
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          room: {
-            select: { id: true, name: true }
-          }
-        }
-      })
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        statistics: {
-          roomsCount,
-          messagesCount,
-          executionLogsCount
-        },
+    try {
+      const [
+        totalRooms,
+        joinedRoomsCount,
+        messagesCount,
+        executionLogsCount,
         recentActivity
-      }
-    });
+      ] = await Promise.all([
+        // Count rooms owned by user with error handling
+        prisma.room.count({
+          where: { ownerId: userId }
+        }).catch((error) => {
+          console.error('Error counting owned rooms:', error);
+          return 0;
+        }),
+        
+        // Count rooms user has joined (including owned) with error handling
+        prisma.roomUser.count({
+          where: { userId }
+        }).catch((error) => {
+          console.error('Error counting joined rooms:', error);
+          return 0;
+        }),
+        
+        // Count messages sent by user with error handling
+        prisma.chatMessage.count({
+          where: { userId }
+        }).catch((error) => {
+          console.error('Error counting messages:', error);
+          return 0;
+        }),
+        
+        // Count code executions by user with proper null handling
+        prisma.executionLog.count({
+          where: { 
+            userId: { not: null, equals: userId }
+          }
+        }).catch((error) => {
+          console.error('Error counting executions:', error);
+          return 0;
+        }),
+        
+        // Get recent activity with comprehensive error handling
+        prisma.executionLog.findMany({
+          where: { 
+            userId: { not: null, equals: userId }
+          },
+          include: {
+            room: {
+              select: { id: true, name: true }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        }).catch((error) => {
+          console.error('Error fetching recent activity:', error);
+          return [];
+        })
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          totalRooms,
+          joinedRooms: joinedRoomsCount,
+          messagesCount,
+          executionsCount: executionLogsCount,
+          recentActivity: recentActivity.map(log => ({
+            id: log.id,
+            language: log.language,
+            status: log.status,
+            createdAt: log.createdAt,
+            room: log.room
+          }))
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching user activity:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch user activity',
+        code: 'DATABASE_ERROR'
+      });
+    }
   })
 );
 

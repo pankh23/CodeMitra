@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import * as React from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/lib/auth';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { RegisterForm } from '@/components/auth/RegisterForm';
 import { Hero } from '@/components/ui/Hero';
 import { Features } from '@/components/ui/Features';
-import { useState } from 'react';
 
 export default function HomePage() {
   const { user, isLoading } = useAuth();

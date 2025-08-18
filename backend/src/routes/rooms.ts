@@ -146,24 +146,38 @@ roomRoutes.post('/',
     const { name, description, password, isPublic, maxUsers, language } = req.body;
     const userId = req.user!.id;
 
-    const hashedPassword = await hashPassword(password);
+    // Prepare room data with conditional password
+    const roomData: any = {
+      name: name.trim(),
+      description: description?.trim() || '',
+      isPublic: Boolean(isPublic),
+      maxUsers: Number(maxUsers),
+      language,
+      ownerId: userId,
+      users: {
+        create: {
+          userId,
+          role: 'owner'
+        }
+      }
+    };
+
+    // Handle password based on room type
+    if (!isPublic) {
+      // Private room - password is required
+      if (!password || !password.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Password is required for private rooms',
+          code: 'VALIDATION_ERROR'
+        });
+      }
+      roomData.password = await hashPassword(password.trim());
+    }
+    // For public rooms, don't include password field at all
 
     const room = await prisma.room.create({
-      data: {
-        name,
-        description,
-        password: hashedPassword,
-        isPublic,
-        maxUsers,
-        language,
-        ownerId: userId,
-        users: {
-          create: {
-            userId,
-            role: 'owner'
-          }
-        }
-      },
+      data: roomData,
       include: {
         owner: {
           select: { id: true, name: true, email: true, avatar: true }
@@ -178,7 +192,7 @@ roomRoutes.post('/',
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: room
     });

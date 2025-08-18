@@ -57,7 +57,10 @@ export const authenticate = async (
       return;
     }
 
-    req.user = user;
+    req.user = {
+      ...user,
+      avatar: user.avatar || undefined
+    };
     req.token = token;
     next();
   } catch (error) {
@@ -92,7 +95,10 @@ export const optionalAuth = async (
         });
 
         if (user) {
-          req.user = user;
+          req.user = {
+            ...user,
+            avatar: user.avatar || undefined
+          };
           req.token = token;
         }
       }
