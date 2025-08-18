@@ -178,8 +178,20 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       setError(null);
       const response = await api.post('/api/rooms', data);
       const room = response.data;
+      
+      // Add room to local state
       setRooms(prev => [room, ...prev]);
-      toast.success('Room created successfully');
+      
+      // Set as current room if user wants to join immediately
+      setCurrentRoom(room);
+      
+      // Set initial code state
+      setCode(room.code || '');
+      setLanguage(room.language || 'javascript');
+      setInput(room.input || '');
+      setOutput(room.output || '');
+      
+      toast.success(`Room "${room.name}" created successfully! Room Code: ${room.id}`);
       return room;
     } catch (error: any) {
       const message = error.response?.data?.error || 'Failed to create room';

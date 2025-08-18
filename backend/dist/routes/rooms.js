@@ -5,11 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.roomRoutes = void 0;
 const express_1 = __importDefault(require("express"));
-const prisma_1 = require("@/utils/prisma");
-const errorHandler_1 = require("@/middleware/errorHandler");
-const auth_1 = require("@/middleware/auth");
-const validation_1 = require("@/utils/validation");
-const password_1 = require("@/utils/password");
+const prisma_1 = require("../utils/prisma");
+const errorHandler_1 = require("../middleware/errorHandler");
+const auth_1 = require("../middleware/auth");
+const validation_1 = require("../utils/validation");
+const password_1 = require("../utils/password");
 const roomRoutes = express_1.default.Router();
 exports.roomRoutes = roomRoutes;
 roomRoutes.get('/', auth_1.authenticate, (0, validation_1.validateQuery)(validation_1.getRoomsQuerySchema), (0, errorHandler_1.asyncHandler)(async (req, res) => {
@@ -110,7 +110,7 @@ roomRoutes.get('/:id', auth_1.authenticate, (0, errorHandler_1.asyncHandler)(asy
             error: 'Room not found'
         });
     }
-    res.json({
+    return res.json({
         success: true,
         data: room
     });
@@ -178,7 +178,7 @@ roomRoutes.post('/join', auth_1.authenticate, (0, validation_1.validate)(validat
             error: 'Room not found'
         });
     }
-    const existingUser = room.users.find(user => user.userId === userId);
+    const existingUser = room.users.find((user) => user.userId === userId);
     if (existingUser) {
         return res.status(409).json({
             success: false,
@@ -190,11 +190,32 @@ roomRoutes.post('/join', auth_1.authenticate, (0, validation_1.validate)(validat
             success: false,
             error: 'Room is full'
         });
+    // Check password for private rooms
+    if (room.password) {
+        // Private room - validate password
+        if (!password || password.trim() === "") {
+            return res.status(401).json({
+                success: false,
+                error: "Private room requires a password"
+            });
+        }
+        
+        const isPasswordValid = await (0, password_1.comparePassword)(password, room.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                error: "Invalid room password"
+            });
+        }
+    } else {
+        // Public room - no password required
+        if (password && password.trim() !== "") {
+            return res.status(400).json({
+                success: false,
+                error: "Public rooms do not require passwords"
+            });
+        }
     }
-    const isPasswordValid = await (0, password_1.comparePassword)(password, room.password);
-    if (!isPasswordValid) {
-        return res.status(401).json({
-            success: false,
             error: 'Invalid room password'
         });
     }
@@ -220,7 +241,7 @@ roomRoutes.post('/join', auth_1.authenticate, (0, validation_1.validate)(validat
             }
         }
     });
-    res.json({
+    return res.json({
         success: true,
         data: updatedRoom
     });
@@ -238,7 +259,7 @@ roomRoutes.post('/:id/leave', auth_1.authenticate, (0, errorHandler_1.asyncHandl
             error: 'Room not found'
         });
     }
-    const userInRoom = room.users.find(user => user.userId === userId);
+    const userInRoom = room.users.find((user) => user.userId === userId);
     if (!userInRoom) {
         return res.status(404).json({
             success: false,
@@ -253,7 +274,7 @@ roomRoutes.post('/:id/leave', auth_1.authenticate, (0, errorHandler_1.asyncHandl
             where: { id }
         });
     }
-    res.json({
+    return res.json({
         success: true,
         message: 'Left room successfully'
     });
@@ -296,7 +317,7 @@ roomRoutes.put('/:id', auth_1.authenticate, (0, validation_1.validate)(validatio
             }
         }
     });
-    res.json({
+    return res.json({
         success: true,
         data: updatedRoom
     });
@@ -322,7 +343,7 @@ roomRoutes.delete('/:id', auth_1.authenticate, (0, errorHandler_1.asyncHandler)(
     await prisma_1.prisma.room.delete({
         where: { id }
     });
-    res.json({
+    return res.json({
         success: true,
         message: 'Room deleted successfully'
     });

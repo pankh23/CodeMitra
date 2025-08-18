@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
-import { prisma } from '@/utils/prisma';
-import { asyncHandler } from '@/middleware/errorHandler';
-import { authenticate, AuthenticatedRequest } from '@/middleware/auth';
+import { prisma } from '../utils/prisma';
+import { asyncHandler } from '../middleware/errorHandler';
+import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { 
   validate, 
   validateQuery,
@@ -9,8 +9,8 @@ import {
   updateRoomSchema, 
   joinRoomSchema, 
   getRoomsQuerySchema 
-} from '@/utils/validation';
-import { hashPassword, comparePassword } from '@/utils/password';
+} from '../utils/validation';
+import { hashPassword, comparePassword } from '../utils/password';
 
 const roomRoutes = express.Router();
 
@@ -131,7 +131,7 @@ roomRoutes.get('/:id',
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: room
     });
@@ -223,7 +223,7 @@ roomRoutes.post('/join',
     }
 
     // Check if user is already in the room
-    const existingUser = room.users.find(user => user.userId === userId);
+    const existingUser = room.users.find((user: any) => user.userId === userId);
     if (existingUser) {
       return res.status(409).json({
         success: false,
@@ -239,13 +239,31 @@ roomRoutes.post('/join',
       });
     }
 
-    // Check password
-    const isPasswordValid = await comparePassword(password, room.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid room password'
-      });
+    // Check password for private rooms
+    if (room.password) {
+      // Private room - validate password
+      if (!password || password.trim() === '') {
+        return res.status(401).json({
+          success: false,
+          error: 'Private room requires a password'
+        });
+      }
+      
+      const isPasswordValid = await comparePassword(password, room.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid room password'
+        });
+      }
+    } else {
+      // Public room - no password required
+      if (password && password.trim() !== '') {
+        return res.status(400).json({
+          success: false,
+          error: 'Public rooms do not require passwords'
+        });
+      }
     }
 
     // Add user to room
@@ -274,7 +292,7 @@ roomRoutes.post('/join',
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedRoom
     });
@@ -300,7 +318,7 @@ roomRoutes.post('/:id/leave',
       });
     }
 
-    const userInRoom = room.users.find(user => user.userId === userId);
+    const userInRoom = room.users.find((user: any) => user.userId === userId);
     if (!userInRoom) {
       return res.status(404).json({
         success: false,
@@ -320,7 +338,7 @@ roomRoutes.post('/:id/leave',
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Left room successfully'
     });
@@ -376,7 +394,7 @@ roomRoutes.put('/:id',
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedRoom
     });
@@ -412,7 +430,7 @@ roomRoutes.delete('/:id',
       where: { id }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Room deleted successfully'
     });

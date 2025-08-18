@@ -8,8 +8,8 @@ RUN apk add --no-cache python3 make g++
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY worker/package*.json ./
+COPY worker/tsconfig.json ./
 
 # Install ALL dependencies (including devDependencies for TypeScript)
 RUN npm install
@@ -18,7 +18,7 @@ RUN npm install
 RUN npm install --save-dev tsc-alias
 
 # Copy source code
-COPY src ./src
+COPY worker/src ./src
 
 # Build the application and resolve path aliases
 RUN npm run build && npx tsc-alias -p tsconfig.json
@@ -38,11 +38,11 @@ RUN apk add --no-cache curl
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files from builder stage
+COPY --from=builder /app/package*.json ./
 
-# Install only production dependencies
-RUN npm install --only=production
+# Copy node_modules from builder stage (includes all dependencies)
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist

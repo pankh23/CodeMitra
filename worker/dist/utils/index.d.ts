@@ -1,0 +1,23 @@
+import winston from 'winston';
+import { SecurityScanResult, WorkerConfig } from '@/types';
+export declare const logger: winston.Logger;
+export declare const getWorkerConfig: () => WorkerConfig;
+export declare const createTempDirectory: () => Promise<string>;
+export declare const writeCodeToFile: (code: string, filePath: string) => Promise<void>;
+export declare const readFileContent: (filePath: string) => Promise<string>;
+export declare const fileExists: (filePath: string) => Promise<boolean>;
+export declare const cleanupDirectory: (dirPath: string) => Promise<void>;
+export declare const getFileSize: (filePath: string) => Promise<number>;
+export declare const createInputFile: (input: string, dirPath: string) => Promise<string>;
+export declare const scanCodeForSecurity: (code: string, language: string) => SecurityScanResult;
+export declare const parseMemoryLimit: (limit: string) => number;
+export declare const formatMemorySize: (bytes: number) => string;
+export declare const formatExecutionTime: (ms: number) => string;
+export declare const sleep: (ms: number) => Promise<void>;
+export declare const validateTimeout: (timeout: number) => number;
+export declare const validateMemoryLimit: (limit: string) => string;
+export declare const generateExecutionId: () => string;
+export declare const isTimeoutError: (error: Error) => boolean;
+export declare const isMemoryError: (error: Error) => boolean;
+export declare const sanitizeError: (error: string) => string;
+//# sourceMappingURL=index.d.ts.map

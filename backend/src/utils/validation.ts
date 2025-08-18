@@ -105,8 +105,8 @@ export const joinRoomSchema = Joi.object({
     'string.uuid': 'Invalid room ID format',
     'any.required': 'Room ID is required',
   }),
-  password: Joi.string().required().messages({
-    'any.required': 'Room password is required',
+  password: Joi.string().allow('').optional().messages({
+    'string.base': 'Password must be a string',
   }),
 });
 

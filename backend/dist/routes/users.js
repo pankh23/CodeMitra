@@ -166,21 +166,33 @@ userRoutes.get('/activity', auth_1.authenticate, (0, errorHandler_1.asyncHandler
         const [totalRooms, joinedRoomsCount, messagesCount, executionLogsCount, recentActivity] = await Promise.all([
             prisma_1.prisma.room.count({
                 where: { ownerId: userId }
-            }).catch(() => 0),
+            }).catch((error) => {
+                console.error('Error counting owned rooms:', error);
+                return 0;
+            }),
             prisma_1.prisma.roomUser.count({
                 where: { userId }
-            }).catch(() => 0),
+            }).catch((error) => {
+                console.error('Error counting joined rooms:', error);
+                return 0;
+            }),
             prisma_1.prisma.chatMessage.count({
                 where: { userId }
-            }).catch(() => 0),
+            }).catch((error) => {
+                console.error('Error counting messages:', error);
+                return 0;
+            }),
             prisma_1.prisma.executionLog.count({
                 where: {
-                    userId: userId
+                    userId: { not: null, equals: userId }
                 }
-            }).catch(() => 0),
+            }).catch((error) => {
+                console.error('Error counting executions:', error);
+                return 0;
+            }),
             prisma_1.prisma.executionLog.findMany({
                 where: {
-                    userId: userId
+                    userId: { not: null, equals: userId }
                 },
                 include: {
                     room: {
@@ -189,7 +201,10 @@ userRoutes.get('/activity', auth_1.authenticate, (0, errorHandler_1.asyncHandler
                 },
                 orderBy: { createdAt: 'desc' },
                 take: 10
-            }).catch(() => [])
+            }).catch((error) => {
+                console.error('Error fetching recent activity:', error);
+                return [];
+            })
         ]);
         res.json({
             success: true,

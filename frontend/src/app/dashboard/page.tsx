@@ -11,12 +11,9 @@ import {
   Users, 
   Code2, 
   MessageSquare, 
-  Video, 
-  Plus,
+  Activity, 
   Settings,
   LogOut,
-  Activity,
-  Clock,
   User
 } from 'lucide-react';
 
@@ -89,11 +86,35 @@ export default function DashboardPage() {
     }
   }, [user?.id, isLoadingStats]);
 
+  // Initialize stats with fallback data for new users
+  useEffect(() => {
+    if (user?.id && !isLoadingStats && stats.totalRooms === 0 && stats.joinedRooms === 0) {
+      setStats({
+        totalRooms: 0,
+        joinedRooms: 0,
+        messagesCount: 0,
+        executionsCount: 0
+      });
+    }
+  }, [user?.id, isLoadingStats, stats.totalRooms, stats.joinedRooms]);
+
   useEffect(() => {
     if (user?.id && !isLoadingStats) {
       fetchUserStats();
     }
   }, [user?.id, fetchUserStats]);
+
+  // Listen for room creation events to refresh stats
+  useEffect(() => {
+    const handleRoomCreated = () => {
+      fetchUserStats();
+    };
+
+    window.addEventListener('roomCreated', handleRoomCreated);
+    return () => {
+      window.removeEventListener('roomCreated', handleRoomCreated);
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -179,7 +200,7 @@ export default function DashboardPage() {
                     Total Rooms
                   </p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {isLoadingStats ? '...' : stats.totalRooms}
+                    {isLoadingStats ? '...' : (statsError ? '0' : stats.totalRooms)}
                   </p>
                 </div>
               </div>
@@ -199,7 +220,7 @@ export default function DashboardPage() {
                     Joined Rooms
                   </p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {isLoadingStats ? '...' : stats.joinedRooms}
+                    {isLoadingStats ? '...' : (statsError ? '0' : stats.joinedRooms)}
                   </p>
                 </div>
               </div>
@@ -219,7 +240,7 @@ export default function DashboardPage() {
                     Messages
                   </p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {isLoadingStats ? '...' : stats.messagesCount}
+                    {isLoadingStats ? '...' : (statsError ? '0' : stats.messagesCount)}
                   </p>
                 </div>
               </div>
@@ -239,7 +260,7 @@ export default function DashboardPage() {
                     Code Executions
                   </p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {isLoadingStats ? '...' : stats.executionsCount}
+                    {isLoadingStats ? '...' : (statsError ? '0' : stats.executionsCount)}
                   </p>
                 </div>
               </div>
@@ -248,79 +269,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Room Manager Section */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          <div className="xl:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Users className="w-5 h-5" />
-                  <span>Room Management</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RoomManager />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quick Actions Sidebar */}
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Plus className="w-5 h-5" />
-                  <span>Quick Actions</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button className="w-full flex items-center space-x-2">
-                  <Plus className="w-4 h-4" />
-                  <span>Create New Room</span>
-                </Button>
-                
-                <Button variant="outline" className="w-full flex items-center space-x-2">
-                  <Users className="w-4 h-4" />
-                  <span>Join Room by Code</span>
-                </Button>
-                
-                <Button variant="outline" className="w-full flex items-center space-x-2">
-                  <Video className="w-4 h-4" />
-                  <span>Start Video Call</span>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="w-5 h-5" />
-                  <span>Recent Activity</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 text-sm">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Joined "React Project" room
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3 text-sm">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Created "Python Tutorial" room
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3 text-sm">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Sent 15 messages in chat
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="w-full">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="w-5 h-5" />
+                <span>Room Management</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RoomManager />
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
