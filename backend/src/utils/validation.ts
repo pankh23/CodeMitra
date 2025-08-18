@@ -61,7 +61,9 @@ export const createRoomSchema = Joi.object({
     'go',
     'rust',
     'php',
-    'ruby'
+    'html',
+    'css',
+    'sql'
   ).default('javascript').messages({
     'any.only': 'Please select a valid programming language',
   }),
@@ -223,7 +225,35 @@ export const getRoomsQuerySchema = Joi.object({
     'go',
     'rust',
     'php',
-    'ruby'
+    'html',
+    'css',
+    'sql'
   ).optional(),
   isPublic: Joi.boolean().optional(),
+});
+
+// Code execution validation schema
+export const codeExecutionSchema = Joi.object({
+  code: Joi.string().required().max(10000).messages({
+    'string.empty': 'Code cannot be empty',
+    'string.max': 'Code too long (max 10,000 characters)',
+    'any.required': 'Code is required'
+  }),
+  language: Joi.string().required().valid(
+    'javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'go', 'rust', 'php', 'html', 'css', 'sql'
+  ).messages({
+    'any.only': 'Unsupported programming language',
+    'any.required': 'Language is required'
+  }),
+  input: Joi.string().optional().max(1000).messages({
+    'string.max': 'Input too long (max 1,000 characters)'
+  }),
+  roomId: Joi.string().required().uuid().messages({
+    'string.guid': 'Invalid room ID format',
+    'any.required': 'Room ID is required'
+  }),
+  userId: Joi.string().required().uuid().messages({
+    'string.guid': 'Invalid user ID format',
+    'any.required': 'User ID is required'
+  })
 });

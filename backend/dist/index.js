@@ -15,6 +15,7 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const auth_1 = require("./routes/auth");
 const rooms_1 = require("./routes/rooms");
 const users_1 = require("./routes/users");
+const code_1 = require("./routes/code");
 const errorHandler_1 = require("./middleware/errorHandler");
 const socket_1 = require("./socket");
 const prisma_1 = require("./utils/prisma");
@@ -43,7 +44,10 @@ app.use(limiter);
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true,
+    optionsSuccessStatus: 200
 }));
 app.use((0, morgan_1.default)('combined'));
 app.use(express_1.default.json({ limit: '10mb' }));
@@ -51,9 +55,11 @@ app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 app.get('/healthz', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
+app.options('*', (0, cors_1.default)());
 app.use('/api/auth', auth_1.authRoutes);
 app.use('/api/rooms', rooms_1.roomRoutes);
 app.use('/api/users', users_1.userRoutes);
+app.use('/api/code', code_1.codeRoutes);
 async function setupSocketIO() {
     try {
         (0, socket_1.setupSocketHandlers)(io);

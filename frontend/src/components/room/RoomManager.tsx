@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useSocket } from '@/lib/socket';
 import { useRoom, CreateRoomData } from '@/lib/room';
@@ -26,7 +27,8 @@ import {
 } from 'lucide-react';
 
 export default function RoomManager() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, token } = useAuth();
   const { socket } = useSocket();
   const { currentRoom, joinRoom, leaveRoom, createRoom } = useRoom();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -207,7 +209,11 @@ export default function RoomManager() {
       // Trigger stats refresh
       window.dispatchEvent(new CustomEvent('roomCreated', { detail: room }));
       
-      // Clear the room code after 10 seconds
+      // Navigate to the room editor immediately after creation
+      console.log('🎉 Room created successfully, navigating to editor:', `/room/${room.id}/editor`);
+      router.push(`/room/${room.id}/editor`);
+      
+      // Clear the room code after 10 seconds (but user will already be in editor)
       setTimeout(() => setCreatedRoomCode(null), 10000);
     } catch (error: any) {
       console.error('Room creation failed:', error);
@@ -266,26 +272,66 @@ export default function RoomManager() {
       // Trigger stats refresh
       window.dispatchEvent(new CustomEvent('roomCreated', { detail: fallbackRoom }));
       
-      // Clear the room code after 10 seconds
+      // Navigate to the room editor immediately after creation
+      console.log('🎉 Fallback room created successfully, navigating to editor:', `/room/${fallbackRoom.id}/editor`);
+      router.push(`/room/${fallbackRoom.id}/editor`);
+      
+      // Clear the room code after 10 seconds (but user will already be in editor)
       setTimeout(() => setCreatedRoomCode(null), 10000);
     }
   };
 
-  const handleJoinRoom = (roomId: string) => {
-    setSelectedRoomId(roomId);
-    setShowPasswordPrompt(true);
+  const handleJoinRoom = async (roomId: string) => {
+    try {
+      // Get room details to check if it's public or private
+      const roomResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/api/rooms/${roomId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (roomResponse.ok) {
+        const roomData = await roomResponse.json();
+        const room = roomData.data;
+        
+        if (room.password) {
+          // Private room - show password prompt
+          setSelectedRoomId(roomId);
+          setShowPasswordPrompt(true);
+        } else {
+          // Public room - join directly without password
+          try {
+            await joinRoom(roomId, '');
+            toast.success('Joined room successfully!');
+          } catch (error: any) {
+            toast.error('Failed to join room. Please try again.');
+          }
+        }
+      } else {
+        toast.error('Failed to get room details. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error checking room details:', error);
+      toast.error('Failed to check room details. Please try again.');
+    }
   };
 
   const handleJoinWithPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedRoomId && joinRoomPassword) {
       try {
-        await joinRoom(selectedRoomId, joinRoomPassword);
+        console.log('🔐 Attempting to join private room:', selectedRoomId);
+        await joinRoom(selectedRoomId, joinRoomPassword, router);
+        console.log('✅ Successfully joined private room');
         setShowPasswordPrompt(false);
         setJoinRoomPassword('');
         setSelectedRoomId('');
-      } catch (error) {
-        // Error handling is done in the useRoom hook
+        toast.success('Joined room successfully!');
+        // Navigation will happen automatically in joinRoom function
+      } catch (error: any) {
+        console.error('❌ Error joining private room:', error);
+        // Don't close password prompt on error, let user retry
+        toast.error('Failed to join room. Please check your password.');
       }
     }
   };
@@ -300,24 +346,51 @@ export default function RoomManager() {
     e.preventDefault();
     if (joinRoomId.trim()) {
       try {
-        // For now, we'll assume all rooms are public since the JWT issue is blocking API calls
-        // In the future, this should check if the room requires a password
         const roomId = joinRoomId.trim();
+        console.log('🔍 Attempting to join room:', roomId);
         
-        // Try to join without password first (public room)
+        // First, get room details to check if it's public or private
         try {
-          await joinRoom(roomId, '');
-          setJoinRoomId('');
-          toast.success('Joined room successfully!');
-        } catch (error: any) {
-          // If joining without password fails, show password prompt
-          if (error.response?.status === 401) {
-            setSelectedRoomId(roomId);
-            setShowPasswordPrompt(true);
-            setJoinRoomId('');
+          const apiUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/api/rooms/${roomId}`;
+          console.log('🌐 Checking room details at:', apiUrl);
+          
+          const roomResponse = await fetch(apiUrl, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          
+          if (roomResponse.ok) {
+            const roomData = await roomResponse.json();
+            console.log('✅ Room details response:', roomData);
+            const room = roomData.data;
+            
+            if (room.password) {
+              console.log('🔒 Private room detected, showing password prompt');
+              // Private room - show password prompt
+              setSelectedRoomId(roomId);
+              setShowPasswordPrompt(true);
+              setJoinRoomId('');
+            } else {
+              console.log('🌍 Public room detected, joining directly');
+              // Public room - join directly without password
+              try {
+                await joinRoom(roomId, '', router);
+                setJoinRoomId('');
+                toast.success('Joined room successfully!');
+                // Navigation will happen automatically in joinRoom function
+              } catch (error: any) {
+                console.error('❌ Error joining public room:', error);
+                toast.error('Failed to join room. Please try again.');
+              }
+            }
           } else {
-            toast.error('Failed to join room. Please check the room code.');
+            console.error('❌ Room not found:', roomResponse.status, roomResponse.statusText);
+            toast.error('Room not found. Please check the room code.');
           }
+        } catch (error: any) {
+          console.error('Error checking room details:', error);
+          toast.error('Failed to check room details. Please try again.');
         }
       } catch (error) {
         console.error('Error joining room:', error);

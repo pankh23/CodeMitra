@@ -21,6 +21,7 @@ model User {
   roomUsers  RoomUser[]
   chatMessages ChatMessage[]
   executionLogs ExecutionLog[]
+  codeExecutions CodeExecution[]
 
   @@map("users")
 }
@@ -45,6 +46,7 @@ model Room {
   users       RoomUser[]
   chatMessages ChatMessage[]
   executionLogs ExecutionLog[]
+  codeExecutions CodeExecution[]
 
   @@map("rooms")
 }
@@ -98,4 +100,26 @@ model ExecutionLog {
   room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@map("execution_logs")
+}
+
+model CodeExecution {
+  id        String   @id @default(uuid())
+  language  String
+  code      String   @db.Text
+  success   Boolean
+  output    String?  @db.Text
+  error     String?  @db.Text
+  executionTime Int? // milliseconds
+  memoryUsed    Int? // bytes
+  compilationTime Int? // millisecfonds
+  status    String   // success, compilation_error, runtime_error, timeout, memory_limit, system_error
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId String
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("code_executions")
 }

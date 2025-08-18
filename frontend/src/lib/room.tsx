@@ -46,7 +46,7 @@ export interface RoomContextType {
   error: string | null;
   // Room actions
   createRoom: (data: CreateRoomData) => Promise<Room>;
-  joinRoom: (roomId: string, password: string) => Promise<void>;
+  joinRoom: (roomId: string, password: string, router?: any) => Promise<void>;
   leaveRoom: (roomId: string) => Promise<void>;
   updateRoom: (roomId: string, data: Partial<Room>) => Promise<Room>;
   deleteRoom: (roomId: string) => Promise<void>;
@@ -203,13 +203,34 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const joinRoom = async (roomId: string, password: string): Promise<void> => {
+  const joinRoom = async (roomId: string, password: string, router?: any): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
-      await api.post('/api/rooms/join', { roomId, password });
+      console.log('🚀 Joining room:', roomId, 'with password:', password ? 'YES' : 'NO');
+      
+      const response = await api.post('/api/rooms/join', { roomId, password });
+      console.log('✅ Room join response:', response.data);
+      
+      // Get the full room details after joining
+      const roomResponse = await api.get(`/api/rooms/${roomId}`);
+      const room = roomResponse.data;
+      
+      // Set as current room
+      setCurrentRoom(room);
+      
+      // Join socket room
       socketJoinRoom(roomId);
+      
+      console.log('🎉 Successfully joined room and set as current');
+      
+      // Navigate to the room editor if router is provided
+      if (router) {
+        console.log('🧭 Navigating to room editor:', `/room/${roomId}/editor`);
+        router.push(`/room/${roomId}/editor`);
+      }
     } catch (error: any) {
+      console.error('❌ Error joining room:', error);
       const message = error.response?.data?.error || 'Failed to join room';
       setError(message);
       toast.error(message);

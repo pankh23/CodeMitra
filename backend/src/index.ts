@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 import { authRoutes } from './routes/auth';
 import { roomRoutes } from './routes/rooms';
 import { userRoutes } from './routes/users';
+import { codeRoutes } from './routes/code';
 import { errorHandler } from './middleware/errorHandler';
 import { setupSocketHandlers } from './socket';
 import { prisma } from './utils/prisma';
@@ -24,29 +25,44 @@ const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true
   }
 });
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 5001;
 
-// Rate limiting
+// CORS configuration - MUST come before rate limiting
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept'],
+  credentials: true,
+  optionsSuccessStatus: 200,
+  preflightContinue: false
+};
+
+// Apply CORS middleware first
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+// Rate limiting - applied after CORS
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip rate limiting for preflight requests
+  skip: (req) => req.method === 'OPTIONS'
 });
 
-// Middleware
+// Other middleware
 app.use(limiter);
 app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -60,6 +76,7 @@ app.get('/healthz', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/code', codeRoutes);
 
 // Socket.IO setup
 async function setupSocketIO() {

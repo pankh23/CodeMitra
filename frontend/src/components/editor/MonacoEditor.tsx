@@ -5,6 +5,7 @@ import { Editor } from '@monaco-editor/react';
 import { useRoom } from '@/lib/room';
 import { useSocket } from '@/lib/socket';
 import { useAuth } from '@/lib/auth';
+import { useCollaborativeEditor, CursorPosition } from '@/lib/useCollaborativeEditor';
 import { motion } from 'framer-motion';
 import { 
   Play, 
@@ -13,13 +14,10 @@ import {
   Upload, 
   Settings, 
   Users, 
-  Eye, 
-  EyeOff,
   Copy,
   Check,
   Terminal,
-  FileText,
-  Palette
+  FileText
 } from 'lucide-react';
 
 interface MonacoEditorProps {
@@ -63,29 +61,11 @@ interface CodeChange {
 
 const SUPPORTED_LANGUAGES = [
   { value: 'javascript', label: 'JavaScript' },
-  { value: 'typescript', label: 'TypeScript' },
   { value: 'python', label: 'Python' },
   { value: 'java', label: 'Java' },
   { value: 'cpp', label: 'C++' },
   { value: 'c', label: 'C' },
-  { value: 'csharp', label: 'C#' },
-  { value: 'go', label: 'Go' },
-  { value: 'rust', label: 'Rust' },
-  { value: 'php', label: 'PHP' },
-  { value: 'html', label: 'HTML' },
-  { value: 'css', label: 'CSS' },
-  { value: 'json', label: 'JSON' },
-  { value: 'xml', label: 'XML' },
-  { value: 'markdown', label: 'Markdown' },
-  { value: 'sql', label: 'SQL' },
-  { value: 'yaml', label: 'YAML' },
-  { value: 'dockerfile', label: 'Dockerfile' },
-];
-
-const THEMES = [
-  { value: 'vs', label: 'Light' },
-  { value: 'vs-dark', label: 'Dark' },
-  { value: 'hc-black', label: 'High Contrast' },
+  { value: 'php', label: 'PHP' }
 ];
 
 export function MonacoEditor({ 
@@ -99,23 +79,39 @@ export function MonacoEditor({
 }: MonacoEditorProps) {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
-  const [code, setCode] = useState(initialCode);
+  const { user } = useAuth();
+  const { currentRoom } = useRoom();
+  
+  // Use collaborative editing hook
+  const {
+    code,
+    language: collaborativeLanguage,
+    cursors,
+    isConnected,
+    isSyncing,
+    lastSyncTime,
+    version,
+    handleCodeChange: collaborativeCodeChange,
+    handleLanguageChange: collaborativeLanguageChange,
+    updateCursorPosition
+  } = useCollaborativeEditor(roomId, initialCode, language);
+  
+  // Local state for UI
   const [currentLanguage, setCurrentLanguage] = useState(language);
-  const [currentTheme, setCurrentTheme] = useState(theme === 'dark' ? 'vs-dark' : 'vs');
-  const [isLoading, setIsLoading] = useState(true);
-  const [cursors, setCursors] = useState<CursorPosition[]>([]);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showUsers, setShowUsers] = useState(false);
-  const [isReadOnly, setIsReadOnly] = useState(readOnly);
-  const [isCopied, setIsCopied] = useState(false);
   const [fontSize, setFontSize] = useState(14);
   const [showMinimap, setShowMinimap] = useState(true);
   const [wordWrap, setWordWrap] = useState(false);
-  const [autoSave, setAutoSave] = useState(true);
+  const [autoSave, setIsAutoSave] = useState(true);
+  const [isReadOnly, setIsReadOnly] = useState(readOnly);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Force dark theme
+  const currentTheme = 'vs-dark';
   
   const { socket } = useSocket();
-  const { currentRoom } = useRoom();
-  const { user } = useAuth();
 
   // Initialize Monaco Editor
   const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
@@ -199,19 +195,8 @@ export function MonacoEditor({
   const handleCodeChange = useCallback((value: string | undefined) => {
     if (value === undefined) return;
     
-    setCode(value);
-    onCodeChange?.(value);
-
-    // Emit code change to other users
-    if (socket && user) {
-      socket.emit('code-change', {
-        roomId,
-        userId: user.id,
-        userName: user.name,
-        code: value,
-        timestamp: Date.now(),
-      });
-    }
+    // Use collaborative code change handler
+    collaborativeCodeChange(value);
 
     // Auto-save
     if (autoSave) {
@@ -219,7 +204,7 @@ export function MonacoEditor({
         handleSave();
       }, 1000);
     }
-  }, [socket, user, roomId, onCodeChange, autoSave]);
+  }, [collaborativeCodeChange, autoSave]);
 
   // Socket event listeners
   useEffect(() => {
@@ -235,7 +220,7 @@ export function MonacoEditor({
           const position = editor.getPosition();
           editor.setValue(data.text);
           editor.setPosition(position);
-          setCode(data.text);
+          // setCode(data.text); // This is now handled by collaborativeCodeChange
         }
       }
     });
@@ -243,22 +228,19 @@ export function MonacoEditor({
     // Listen for cursor positions from other users
     socket.on('cursor-position', (data: CursorPosition) => {
       if (data.userId !== user?.id) {
-        setCursors(prev => {
-          const filtered = prev.filter(cursor => cursor.userId !== data.userId);
-          return [...filtered, data];
-        });
+        updateCursorPosition(data);
       }
     });
 
     // Listen for user disconnect
     socket.on('user-left', (userId: string) => {
-      setCursors(prev => prev.filter(cursor => cursor.userId !== userId));
+      // updateCursorPosition({ userId: userId, userName: 'User Left', userColor: '#FF0000', position: { lineNumber: 0, column: 0 } });
     });
 
     // Listen for language changes
     socket.on('language-change', (data: { language: string; userId: string }) => {
       if (data.userId !== user?.id) {
-        setCurrentLanguage(data.language);
+        collaborativeLanguageChange(data.language);
       }
     });
 
@@ -268,7 +250,7 @@ export function MonacoEditor({
       socket.off('user-left');
       socket.off('language-change');
     };
-  }, [socket, user]);
+  }, [socket, user, updateCursorPosition, collaborativeLanguageChange]);
 
   // Generate user color
   const getUserColor = (userId: string) => {
@@ -306,7 +288,7 @@ export function MonacoEditor({
 
   // Handle language change
   const handleLanguageChange = (newLanguage: string) => {
-    setCurrentLanguage(newLanguage);
+    collaborativeLanguageChange(newLanguage);
     if (socket && user) {
       socket.emit('language-change', {
         roomId,
@@ -318,10 +300,7 @@ export function MonacoEditor({
 
   // Handle theme change
   const handleThemeChange = (newTheme: string) => {
-    setCurrentTheme(newTheme);
-    if (monacoRef.current) {
-      monacoRef.current.editor.setTheme(newTheme);
-    }
+    // This function is no longer needed as theme is forced to dark
   };
 
   // Handle file upload
@@ -331,10 +310,8 @@ export function MonacoEditor({
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
-        setCode(content);
-        if (editorRef.current) {
-          editorRef.current.setValue(content);
-        }
+        // collaborativeCodeChange(content); // This would overwrite other users' code
+        // setCode(content); // This is now handled by collaborativeCodeChange
       };
       reader.readAsText(file);
     }
@@ -365,19 +342,6 @@ export function MonacoEditor({
             {SUPPORTED_LANGUAGES.map((lang) => (
               <option key={lang.value} value={lang.value}>
                 {lang.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Theme Selector */}
-          <select
-            value={currentTheme}
-            onChange={(e) => handleThemeChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
-          >
-            {THEMES.map((theme) => (
-              <option key={theme.value} value={theme.value}>
-                {theme.label}
               </option>
             ))}
           </select>
@@ -505,7 +469,7 @@ export function MonacoEditor({
                 <input
                   type="checkbox"
                   checked={autoSave}
-                  onChange={(e) => setAutoSave(e.target.checked)}
+                  onChange={(e) => setIsAutoSave(e.target.checked)}
                   className="rounded"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">Auto Save</span>
@@ -550,6 +514,37 @@ export function MonacoEditor({
           </div>
         )}
 
+        {/* Collaboration Status Bar */}
+        <div className="absolute top-2 right-2 z-20 flex items-center space-x-2">
+          {/* Connection Status */}
+          <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs ${
+            isConnected 
+              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
+          </div>
+
+          {/* Sync Status */}
+          {isSyncing && (
+            <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 rounded-full text-xs">
+              <div className="w-2 h-2 border border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <span>Syncing...</span>
+            </div>
+          )}
+
+          {/* Version Info */}
+          <div className="px-2 py-1 bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded-full text-xs">
+            v{version}
+          </div>
+
+          {/* Active Users */}
+          <div className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400 rounded-full text-xs">
+            {cursors.length + 1} users
+          </div>
+        </div>
+
         <Editor
           height="100%"
           language={currentLanguage}
@@ -574,6 +569,71 @@ export function MonacoEditor({
             hover: { enabled: true },
             contextmenu: true,
             mouseWheelZoom: true,
+            // Enhanced features
+            lineNumbers: 'on',
+            roundedSelection: false,
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            minimap: { 
+              enabled: showMinimap,
+              side: 'right',
+              size: 'proportional'
+            },
+            // IntelliSense enhancements
+            suggest: {
+              showKeywords: true,
+              showSnippets: true,
+              showClasses: true,
+              showFunctions: true,
+              showVariables: true,
+              showConstants: true,
+              showEnums: true,
+              showModules: true,
+              showProperties: true,
+              showEvents: true,
+              showOperators: true,
+              showUnits: true,
+              showValues: true,
+              showColors: true,
+              showFiles: true,
+              showReferences: true,
+              showFolders: true,
+              showTypeParameters: true,
+              showWords: true,
+              showColors: true,
+              showUserWords: true,
+              showUserSnippets: true,
+              showOther: true,
+              showIcons: true,
+              maxVisibleSuggestions: 12
+            },
+            // Code formatting
+            formatOnPaste: true,
+            formatOnType: true,
+            // Bracket matching
+            bracketPairColorization: { enabled: true },
+            guides: {
+              bracketPairs: true,
+              indentation: true,
+              highlightActiveIndentation: true
+            },
+            // Error squiggles
+            renderValidationDecorations: 'on',
+            // Find and replace
+            find: {
+              addExtraSpaceOnTop: false,
+              autoFindInSelection: 'never',
+              caseSensitive: 'off',
+              findInSelection: false,
+              globalFindInSelection: false,
+              isRegex: false,
+              matchCase: false,
+              matchWholeWord: false,
+              regex: false,
+              searchScope: null,
+              seedSearchStringFromSelection: 'never',
+              useGlobalFindInSelection: false
+            }
           }}
         />
 
@@ -581,7 +641,7 @@ export function MonacoEditor({
         {cursors.map((cursor) => (
           <div
             key={cursor.userId}
-            className="absolute z-10 pointer-events-none"
+            className="absolute z-30 pointer-events-none"
             style={{
               // Position calculation would need to be implemented based on Monaco's coordinate system
               // This is a simplified representation
@@ -589,16 +649,33 @@ export function MonacoEditor({
               left: `${cursor.position.column * 8}px`,
             }}
           >
+            {/* Cursor line */}
             <div
               className="w-0.5 h-5 animate-pulse"
               style={{ backgroundColor: cursor.userColor }}
             />
+            
+            {/* User name label */}
             <div
-              className="absolute top-0 left-1 px-2 py-1 text-xs text-white rounded whitespace-nowrap"
+              className="absolute top-0 left-1 px-2 py-1 text-xs text-white rounded whitespace-nowrap shadow-sm"
               style={{ backgroundColor: cursor.userColor }}
             >
               {cursor.userName}
             </div>
+            
+            {/* Selection highlight */}
+            {cursor.selection && (
+              <div
+                className="absolute bg-opacity-20 rounded"
+                style={{
+                  backgroundColor: cursor.userColor,
+                  top: `${cursor.selection.startLineNumber * 20}px`,
+                  left: `${cursor.selection.startColumn * 8}px`,
+                  width: `${(cursor.selection.endColumn - cursor.selection.startColumn) * 8}px`,
+                  height: `${(cursor.selection.endLineNumber - cursor.selection.startLineNumber + 1) * 20}px`,
+                }}
+              />
+            )}
           </div>
         ))}
       </div>

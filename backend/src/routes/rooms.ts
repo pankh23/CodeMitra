@@ -240,7 +240,7 @@ roomRoutes.post('/join',
     }
 
     // Check password for private rooms
-    if (room.password) {
+    if (room.password && room.password.trim() !== '') {
       // Private room - validate password
       if (!password || password.trim() === '') {
         return res.status(401).json({

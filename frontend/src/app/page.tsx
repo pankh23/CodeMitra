@@ -104,7 +104,7 @@ export default function HomePage() {
             </div>
             <LoginForm onSuccess={() => setShowAuth(null)} />
             <p className="text-center mt-4 text-gray-600">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <button
                 onClick={() => setShowAuth('register')}
                 className="text-primary-600 hover:text-primary-700 font-medium"

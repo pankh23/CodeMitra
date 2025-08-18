@@ -6,12 +6,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.extractTokenFromHeader = exports.generateRefreshToken = exports.verifyToken = exports.generateToken = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-// Debug logging
-console.log('JWT_SECRET loaded:' + (JWT_SECRET ? 'YES' : 'NO'));
-console.log('JWT_SECRET length:' + (JWT_SECRET ? JWT_SECRET.length : 0));
-console.log('JWT_SECRET starts with:' + (JWT_SECRET ? JWT_SECRET.substring(0, 10) + '...' : 'NONE'));
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+console.log('JWT_SECRET loaded:', JWT_SECRET ? 'YES' : 'NO');
+console.log('JWT_SECRET length:', JWT_SECRET ? JWT_SECRET.length : 0);
+console.log('JWT_SECRET starts with:', JWT_SECRET ? JWT_SECRET.substring(0, 10) + '...' : 'NONE');
 const generateToken = (user) => {
     const payload = {
         userId: user.id,
@@ -24,19 +22,13 @@ const generateToken = (user) => {
 exports.generateToken = generateToken;
 const verifyToken = (token) => {
     try {
-        console.log('Verifying token with secret:' + (JWT_SECRET ? 'SECRET_LOADED' : 'NO_SECRET'));
+        console.log('Verifying token with secret:', JWT_SECRET ? 'SECRET_LOADED' : 'NO_SECRET');
         const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-        console.log('Token verified successfully for user:' + decoded.userId);
-        return decoded;
-    } catch (error) {
-        console.error('Token verification failed:' + error);
-        return null;
-    }
-    try {
-        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        console.log('Token verified successfully for user:', decoded.userId);
         return decoded;
     }
     catch (error) {
+        console.error('Token verification failed:', error);
         return null;
     }
 };

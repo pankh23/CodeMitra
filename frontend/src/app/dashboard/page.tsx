@@ -14,7 +14,9 @@ import {
   Activity, 
   Settings,
   LogOut,
-  User
+  User,
+  Globe,
+  Clock
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -24,8 +26,150 @@ interface DashboardStats {
   executionsCount: number;
 }
 
+interface Room {
+  id: string;
+  name: string;
+  description?: string;
+  isPublic: boolean;
+  maxUsers: number;
+  language: string;
+  createdAt: string;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  users: Array<{
+    id: string;
+    userId: string;
+    role: string;
+    joinedAt: string;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  }>;
+}
+
+// Available Rooms List Component
+function AvailableRoomsList() {
+  const { token } = useAuth();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(true);
+  const [roomsError, setRoomsError] = useState<string | null>(null);
+
+  const fetchAvailableRooms = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      setIsLoadingRooms(true);
+      setRoomsError(null);
+      
+      const apiUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/api/rooms`;
+      console.log('🌐 Fetching available rooms from:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Available rooms response:', data);
+        
+        if (data.success && data.data && data.data.rooms) {
+          setRooms(data.data.rooms);
+        } else {
+          throw new Error(data.error || 'Failed to load rooms');
+        }
+      } else {
+        console.error('❌ Available rooms API error:', response.status, response.statusText);
+        throw new Error(`Server error: ${response.status}`);
+      }
+    } catch (error: unknown) {
+      console.error('Error fetching available rooms:', error);
+      const message = error instanceof Error ? error.message : 'Failed to load rooms';
+      setRoomsError(message);
+      setRooms([]);
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      fetchAvailableRooms();
+    }
+  }, [token, fetchAvailableRooms]);
+
+  if (isLoadingRooms) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (roomsError) {
+    return (
+      <div className="text-center py-8 text-red-600">
+        <p>Error loading rooms: {roomsError}</p>
+        <Button onClick={fetchAvailableRooms} variant="outline" className="mt-2">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (rooms.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <Globe className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+        <p>No rooms available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 max-h-80 overflow-y-auto">
+      {rooms.map((room) => (
+        <div
+          key={room.id}
+          className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+        >
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <h4 className="font-medium text-gray-900 dark:text-gray-100">{room.name}</h4>
+              <Badge variant="outline">{room.language}</Badge>
+              {!room.isPublic && (
+                <Badge variant="secondary">Private</Badge>
+              )}
+            </div>
+            {room.description && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{room.description}</p>
+            )}
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                <span>{room.users?.length || 0}/{room.maxUsers}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                <span>{new Date(room.createdAt).toLocaleDateString()}</span>
+              </div>
+              <span>by {room.owner.name}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout, isLoading, token } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats>({
     totalRooms: 0,
@@ -43,36 +187,47 @@ export default function DashboardPage() {
   }, [user, isLoading, router]);
 
   const fetchUserStats = useCallback(async () => {
-    if (!user?.id || isLoadingStats) return;
+    if (!user?.id || !token) return;
+    
+    console.log('🔍 fetchUserStats called with:', { userId: user?.id, token: token ? 'EXISTS' : 'MISSING' });
     
     try {
       setIsLoadingStats(true);
       setStatsError(null);
       
-      const response = await fetch('/api/users/activity', {
+      const apiUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/api/users/activity`;
+      console.log('🌐 Calling API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ API Response:', data);
+        
         if (data.success && data.data) {
-          setStats({
+          const newStats = {
             totalRooms: data.data.totalRooms || 0,
             joinedRooms: data.data.joinedRooms || 0,
             messagesCount: data.data.messagesCount || 0,
             executionsCount: data.data.executionsCount || 0
-          });
+          };
+          console.log('📊 Setting new stats:', newStats);
+          setStats(newStats);
         } else {
           throw new Error(data.error || 'Failed to load statistics');
         }
       } else {
+        console.error('❌ API Error:', response.status, response.statusText);
         throw new Error(`Server error: ${response.status}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching user stats:', error);
-      setStatsError(error.message || 'Failed to load statistics');
+      const message = error instanceof Error ? error.message : 'Failed to load statistics';
+      setStatsError(message);
       
       // Set fallback data to prevent infinite loops
       setStats({
@@ -84,25 +239,18 @@ export default function DashboardPage() {
     } finally {
       setIsLoadingStats(false);
     }
-  }, [user?.id, isLoadingStats]);
+  }, [user?.id, token]);
 
-  // Initialize stats with fallback data for new users
-  useEffect(() => {
-    if (user?.id && !isLoadingStats && stats.totalRooms === 0 && stats.joinedRooms === 0) {
-      setStats({
-        totalRooms: 0,
-        joinedRooms: 0,
-        messagesCount: 0,
-        executionsCount: 0
-      });
-    }
-  }, [user?.id, isLoadingStats, stats.totalRooms, stats.joinedRooms]);
+  // Remove broken initialization logic
 
+  // Fetch stats when component mounts and user is available
   useEffect(() => {
-    if (user?.id && !isLoadingStats) {
+    console.log('🔄 useEffect triggered:', { userId: user?.id, hasToken: !!token });
+    if (user?.id && token) {
+      console.log('🚀 Calling fetchUserStats...');
       fetchUserStats();
     }
-  }, [user?.id, fetchUserStats]);
+  }, [user?.id, token, fetchUserStats]);
 
   // Listen for room creation events to refresh stats
   useEffect(() => {
@@ -114,7 +262,7 @@ export default function DashboardPage() {
     return () => {
       window.removeEventListener('roomCreated', handleRoomCreated);
     };
-  }, []);
+  }, [fetchUserStats]);
 
   if (isLoading) {
     return (
@@ -264,6 +412,21 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Available Rooms Section */}
+        <div className="mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="w-5 h-5" />
+                <span>Available Rooms</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AvailableRoomsList />
             </CardContent>
           </Card>
         </div>

@@ -190,34 +190,29 @@ roomRoutes.post('/join', auth_1.authenticate, (0, validation_1.validate)(validat
             success: false,
             error: 'Room is full'
         });
-    // Check password for private rooms
-    if (room.password) {
-        // Private room - validate password
-        if (!password || password.trim() === "") {
+    }
+    if (room.password && room.password.trim() !== '') {
+        if (!password || password.trim() === '') {
             return res.status(401).json({
                 success: false,
-                error: "Private room requires a password"
+                error: 'Private room requires a password'
             });
         }
-        
         const isPasswordValid = await (0, password_1.comparePassword)(password, room.password);
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
-                error: "Invalid room password"
-            });
-        }
-    } else {
-        // Public room - no password required
-        if (password && password.trim() !== "") {
-            return res.status(400).json({
-                success: false,
-                error: "Public rooms do not require passwords"
+                error: 'Invalid room password'
             });
         }
     }
-            error: 'Invalid room password'
-        });
+    else {
+        if (password && password.trim() !== '') {
+            return res.status(400).json({
+                success: false,
+                error: 'Public rooms do not require passwords'
+            });
+        }
     }
     await prisma_1.prisma.roomUser.create({
         data: {
