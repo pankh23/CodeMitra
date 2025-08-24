@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ownedRooms Room[]     @relation("RoomOwner")
+  roomUsers  RoomUser[]
+  chatMessages ChatMessage[]
+  executionLogs ExecutionLog[]
+  codeExecutions CodeExecution[]
+
+  @@map("users")
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  password    String?
+  isPublic    Boolean  @default(false)
+  maxUsers    Int      @default(10)
+  language    String   @default("javascript")
+  code        String   @default("")
+  input       String   @default("")
+  output      String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownerId     String
+  owner       User         @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  users       RoomUser[]
+  chatMessages ChatMessage[]
+  executionLogs ExecutionLog[]
+  codeExecutions CodeExecution[]
+
+  @@map("rooms")
+}
+
+model RoomUser {
+  id       String @id @default(uuid())
+  userId   String
+  roomId   String
+  role     String @default("member") // owner, admin, member
+  joinedAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+  @@map("room_users")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  type      String   @default("text") // text, system, code
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId String
+  roomId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model ExecutionLog {
+  id        String   @id @default(uuid())
+  language  String
+  code      String
+  input     String?
+  output    String?
+  error     String?
+  executionTime Int? // milliseconds
+  memoryUsed    Int? // bytes
+  status    String   @default("pending") // pending, running, completed, failed
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId String?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  roomId String
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("execution_logs")
+}
+
+model CodeExecution {
+  id        String   @id @default(uuid())
+  language  String
+  code      String   @db.Text
+  success   Boolean
+  output    String?  @db.Text
+  error     String?  @db.Text
+  executionTime Int? // milliseconds
+  memoryUsed    Int? // bytes
+  compilationTime Int? // millisecfonds
+  status    String   // success, compilation_error, runtime_error, timeout, memory_limit, system_error
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId String
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@map("code_executions")
+}

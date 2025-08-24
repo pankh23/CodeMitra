@@ -1,43 +1,23 @@
-// Use flexible types to avoid module resolution issues during build
-interface Server {
-  to(room: string): any;
-  in(room: string): any;
-  [key: string]: any;
-}
+import { AuthenticatedSocket, Server } from './types';
+import { prisma } from '../utils/prisma';
 
-interface AuthenticatedSocket {
-  userId?: string;
-  user?: { name?: string };
-  on(event: string, handler: Function): void;
-  emit(event: string, data: any): void;
-  to(room: string): any;
-  join(room: string): void;
-  leave(room: string): void;
-  id: string;
-  [key: string]: any;
-}
 
-interface isUserInRoomFunction {
-  (userId: string, roomId: string): Promise<boolean>;
-}
 
-declare const isUserInRoom: isUserInRoomFunction;
-
-// WebRTC types
+// WebRTC type definitions
 interface RTCSessionDescriptionInit {
-  type?: string;
-  sdp?: string;
+  type: 'offer' | 'answer';
+  sdp: string;
 }
 
-interface RTCIceCandidate {
-  candidate?: string;
-  sdpMid?: string;
-  sdpMLineIndex?: number;
+interface RTCIceCandidateInit {
+  candidate: string;
+  sdpMLineIndex: number | null;
+  sdpMid: string | null;
 }
 
-export const setupVideoHandlers = (io: Server, socket: AuthenticatedSocket) => {
-  // Join video call
-  socket.on('video:join-call', async (data: { roomId: string }) => {
+export const setupVideoHandlers = (io: Server, socket: AuthenticatedSocket, isUserInRoom: (userId: string, roomId: string) => Promise<boolean>) => {
+  // Join video call room
+  socket.on('video:join', async (data: { roomId: string }) => {
     try {
       const { roomId } = data;
       const userId = socket.userId!;
@@ -45,134 +25,192 @@ export const setupVideoHandlers = (io: Server, socket: AuthenticatedSocket) => {
       // Check if user is authorized
       const isAuthorized = await isUserInRoom(userId, roomId);
       if (!isAuthorized) {
-        socket.emit('video:error', { message: 'You are not authorized to join video call in this room' });
+        socket.emit('video:error', { message: 'You are not authorized to join video calls in this room' });
         return;
       }
 
-      // Join video call namespace
+      // Join the video room
       socket.join(`video:${roomId}`);
 
-      // Notify other users in the video call
+      // Get user info
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, avatar: true }
+      });
+
+      if (!user) {
+        socket.emit('video:error', { message: 'User not found' });
+        return;
+      }
+
+      // Notify other users in the video room
       socket.to(`video:${roomId}`).emit('video:user-joined', {
-        userId,
-        userName: socket.user?.name,
+        userId: user.id,
+        userName: user.name,
+        userAvatar: user.avatar,
         roomId
       });
 
-      // Send confirmation to the user
-      socket.emit('video:joined-call', {
-        roomId,
-        userId
-      });
-
-      console.log(`User ${socket.user?.name} joined video call in room ${roomId}`);
+      console.log(`User ${user.name} joined video call in room ${roomId}`);
     } catch (error) {
       console.error('Error joining video call:', error);
       socket.emit('video:error', { message: 'Failed to join video call' });
     }
   });
 
-  // Leave video call
-  socket.on('video:leave-call', async (data: { roomId: string }) => {
+  // Leave video call room
+  socket.on('video:leave', async (data: { roomId: string }) => {
     try {
       const { roomId } = data;
       const userId = socket.userId!;
 
-      // Leave video call namespace
+      // Leave the video room
       socket.leave(`video:${roomId}`);
 
-      // Notify other users in the video call
-      socket.to(`video:${roomId}`).emit('video:user-left', {
-        userId,
-        userName: socket.user?.name,
-        roomId
+      // Get user info
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true }
       });
 
-      // Send confirmation to the user
-      socket.emit('video:left-call', {
-        roomId,
-        userId
-      });
+      if (user) {
+        // Notify other users in the video room
+        socket.to(`video:${roomId}`).emit('video:user-left', {
+          userId: user.id,
+          roomId
+        });
 
-      console.log(`User ${socket.user?.name} left video call in room ${roomId}`);
+        console.log(`User ${user.name} left video call in room ${roomId}`);
+      }
     } catch (error) {
       console.error('Error leaving video call:', error);
-      socket.emit('video:error', { message: 'Failed to leave video call' });
+    }
+  });
+
+  // Handle video call started
+  socket.on('video:call-started', async (data: { roomId: string }) => {
+    try {
+      const { roomId } = data;
+      const userId = socket.userId!;
+
+      // Check if user is authorized
+      const isAuthorized = await isUserInRoom(userId, roomId);
+      if (!isAuthorized) {
+        return;
+      }
+
+      // Get user info
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true }
+      });
+
+      if (user) {
+        // Notify other users in the room about incoming call
+        socket.to(roomId).emit('video:incoming-call', {
+          from: {
+            id: user.id,
+            name: user.name
+          },
+          roomId
+        });
+
+        console.log(`Video call started by ${user.name} in room ${roomId}`);
+      }
+    } catch (error) {
+      console.error('Error starting video call:', error);
+    }
+  });
+
+  // Handle video call ended
+  socket.on('video:call-ended', async (data: { roomId: string }) => {
+    try {
+      const { roomId } = data;
+      const userId = socket.userId!;
+
+      // Check if user is authorized
+      const isAuthorized = await isUserInRoom(userId, roomId);
+      if (!isAuthorized) {
+        return;
+      }
+
+      // Get user info
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true }
+      });
+
+      if (user) {
+        // Notify other users in the room
+        socket.to(roomId).emit('video:call-ended', {
+          by: {
+            id: user.id,
+            name: user.name
+          },
+          roomId
+        });
+
+        console.log(`Video call ended by ${user.name} in room ${roomId}`);
+      }
+    } catch (error) {
+      console.error('Error ending video call:', error);
     }
   });
 
   // Handle WebRTC offer
-  socket.on('video:offer', async (data: { 
-    roomId: string; 
-    targetUserId: string; 
-    offer: RTCSessionDescriptionInit 
-  }) => {
+  socket.on('video:offer', async (data: { roomId: string; to: string; offer: RTCSessionDescriptionInit }) => {
     try {
-      const { roomId, targetUserId, offer } = data;
+      const { roomId, to, offer } = data;
       const userId = socket.userId!;
 
       // Check if user is authorized
       const isAuthorized = await isUserInRoom(userId, roomId);
       if (!isAuthorized) {
-        socket.emit('video:error', { message: 'You are not authorized to send video offers in this room' });
         return;
       }
 
-      // Send offer to target user
-      socket.to(`video:${roomId}`).emit('video:offer-received', {
+      // Forward offer to specific user
+      socket.to(to).emit('video:offer', {
+        from: userId,
         offer,
-        fromUserId: userId,
-        fromUserName: socket.user?.name,
         roomId
       });
 
-      console.log(`Video offer sent from ${socket.user?.name} in room ${roomId}`);
+      console.log(`WebRTC offer forwarded from ${userId} to ${to} in room ${roomId}`);
     } catch (error) {
-      console.error('Error sending video offer:', error);
-      socket.emit('video:error', { message: 'Failed to send video offer' });
+      console.error('Error handling WebRTC offer:', error);
     }
   });
 
   // Handle WebRTC answer
-  socket.on('video:answer', async (data: { 
-    roomId: string; 
-    targetUserId: string; 
-    answer: RTCSessionDescriptionInit 
-  }) => {
+  socket.on('video:answer', async (data: { roomId: string; to: string; answer: RTCSessionDescriptionInit }) => {
     try {
-      const { roomId, targetUserId, answer } = data;
+      const { roomId, to, answer } = data;
       const userId = socket.userId!;
 
       // Check if user is authorized
       const isAuthorized = await isUserInRoom(userId, roomId);
       if (!isAuthorized) {
-        socket.emit('video:error', { message: 'You are not authorized to send video answers in this room' });
         return;
       }
 
-      // Send answer to target user
-      socket.to(`video:${roomId}`).emit('video:answer-received', {
+      // Forward answer to specific user
+      socket.to(to).emit('video:answer', {
+        from: userId,
         answer,
-        fromUserId: userId,
-        fromUserName: socket.user?.name,
         roomId
       });
 
-      console.log(`Video answer sent from ${socket.user?.name} in room ${roomId}`);
+      console.log(`WebRTC answer forwarded from ${userId} to ${to} in room ${roomId}`);
     } catch (error) {
-      console.error('Error sending video answer:', error);
-      socket.emit('video:error', { message: 'Failed to send video answer' });
+      console.error('Error handling WebRTC answer:', error);
     }
   });
 
   // Handle ICE candidates
-  socket.on('video:ice-candidate', async (data: { 
-    roomId: string; 
-    targetUserId: string; 
-    candidate: RTCIceCandidate 
-  }) => {
+  socket.on('video:ice-candidate', async (data: { roomId: string; to: string; candidate: RTCIceCandidateInit }) => {
     try {
-      const { roomId, targetUserId, candidate } = data;
+      const { roomId, to, candidate } = data;
       const userId = socket.userId!;
 
       // Check if user is authorized
@@ -181,22 +219,23 @@ export const setupVideoHandlers = (io: Server, socket: AuthenticatedSocket) => {
         return;
       }
 
-      // Send ICE candidate to target user
-      socket.to(`video:${roomId}`).emit('video:ice-candidate-received', {
+      // Forward ICE candidate to specific user
+      socket.to(to).emit('video:ice-candidate', {
+        from: userId,
         candidate,
-        fromUserId: userId,
-        fromUserName: socket.user?.name,
         roomId
       });
+
+      console.log(`ICE candidate forwarded from ${userId} to ${to} in room ${roomId}`);
     } catch (error) {
-      console.error('Error sending ICE candidate:', error);
+      console.error('Error handling ICE candidate:', error);
     }
   });
 
-  // Handle mute/unmute
-  socket.on('video:toggle-mute', async (data: { roomId: string; isMuted: boolean }) => {
+  // Handle video call status updates
+  socket.on('video:status-update', async (data: { roomId: string; status: string; details?: any }) => {
     try {
-      const { roomId, isMuted } = data;
+      const { roomId, status, details } = data;
       const userId = socket.userId!;
 
       // Check if user is authorized
@@ -205,179 +244,64 @@ export const setupVideoHandlers = (io: Server, socket: AuthenticatedSocket) => {
         return;
       }
 
-      // Notify other users about mute status
-      socket.to(`video:${roomId}`).emit('video:user-mute-changed', {
-        userId,
-        userName: socket.user?.name,
-        isMuted,
-        roomId
+      // Get user info
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true }
       });
 
-      console.log(`User ${socket.user?.name} ${isMuted ? 'muted' : 'unmuted'} in room ${roomId}`);
+      if (user) {
+        // Broadcast status update to all users in the video room
+        io.to(`video:${roomId}`).emit('video:status-updated', {
+          userId: user.id,
+          userName: user.name,
+          status,
+          details,
+          roomId,
+          timestamp: new Date()
+        });
+
+        console.log(`Video status update from ${user.name} in room ${roomId}: ${status}`);
+      }
     } catch (error) {
-      console.error('Error toggling mute:', error);
+      console.error('Error handling video status update:', error);
     }
   });
 
-  // Handle video on/off
-  socket.on('video:toggle-video', async (data: { roomId: string; isVideoOff: boolean }) => {
+  // Handle video call recording requests
+  socket.on('video:recording-request', async (data: { roomId: string; action: 'start' | 'stop' }) => {
     try {
-      const { roomId, isVideoOff } = data;
+      const { roomId, action } = data;
       const userId = socket.userId!;
 
       // Check if user is authorized
       const isAuthorized = await isUserInRoom(userId, roomId);
       if (!isAuthorized) {
+        socket.emit('video:error', { message: 'You are not authorized to control recording in this room' });
         return;
       }
 
-      // Notify other users about video status
-      socket.to(`video:${roomId}`).emit('video:user-video-changed', {
-        userId,
-        userName: socket.user?.name,
-        isVideoOff,
-        roomId
+      // Get user info
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true }
       });
 
-      console.log(`User ${socket.user?.name} turned video ${isVideoOff ? 'off' : 'on'} in room ${roomId}`);
-    } catch (error) {
-      console.error('Error toggling video:', error);
-    }
-  });
+      if (user) {
+        // Broadcast recording request to all users in the video room
+        io.to(`video:${roomId}`).emit('video:recording-requested', {
+          userId: user.id,
+          userName: user.name,
+          action,
+          roomId,
+          timestamp: new Date()
+        });
 
-  // Handle screen sharing
-  socket.on('video:start-screen-share', async (data: { roomId: string }) => {
-    try {
-      const { roomId } = data;
-      const userId = socket.userId!;
-
-      // Check if user is authorized
-      const isAuthorized = await isUserInRoom(userId, roomId);
-      if (!isAuthorized) {
-        socket.emit('video:error', { message: 'You are not authorized to share screen in this room' });
-        return;
+        console.log(`Video recording ${action} requested by ${user.name} in room ${roomId}`);
       }
-
-      // Notify other users about screen sharing
-      socket.to(`video:${roomId}`).emit('video:screen-share-started', {
-        userId,
-        userName: socket.user?.name,
-        roomId
-      });
-
-      console.log(`User ${socket.user?.name} started screen sharing in room ${roomId}`);
     } catch (error) {
-      console.error('Error starting screen share:', error);
-      socket.emit('video:error', { message: 'Failed to start screen sharing' });
-    }
-  });
-
-  socket.on('video:stop-screen-share', async (data: { roomId: string }) => {
-    try {
-      const { roomId } = data;
-      const userId = socket.userId!;
-
-      // Check if user is authorized
-      const isAuthorized = await isUserInRoom(userId, roomId);
-      if (!isAuthorized) {
-        return;
-      }
-
-      // Notify other users about screen sharing stopped
-      socket.to(`video:${roomId}`).emit('video:screen-share-stopped', {
-        userId,
-        userName: socket.user?.name,
-        roomId
-      });
-
-      console.log(`User ${socket.user?.name} stopped screen sharing in room ${roomId}`);
-    } catch (error) {
-      console.error('Error stopping screen share:', error);
-    }
-  });
-
-  // Handle recording (if implemented)
-  socket.on('video:start-recording', async (data: { roomId: string }) => {
-    try {
-      const { roomId } = data;
-      const userId = socket.userId!;
-
-      // Check if user is authorized (usually only room owner can record)
-      const isAuthorized = await isUserInRoom(userId, roomId);
-      if (!isAuthorized) {
-        socket.emit('video:error', { message: 'You are not authorized to record in this room' });
-        return;
-      }
-
-      // Notify all users about recording
-      io.to(`video:${roomId}`).emit('video:recording-started', {
-        userId,
-        userName: socket.user?.name,
-        roomId
-      });
-
-      console.log(`Recording started in room ${roomId} by ${socket.user?.name}`);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      socket.emit('video:error', { message: 'Failed to start recording' });
-    }
-  });
-
-  socket.on('video:stop-recording', async (data: { roomId: string }) => {
-    try {
-      const { roomId } = data;
-      const userId = socket.userId!;
-
-      // Check if user is authorized
-      const isAuthorized = await isUserInRoom(userId, roomId);
-      if (!isAuthorized) {
-        return;
-      }
-
-      // Notify all users about recording stopped
-      io.to(`video:${roomId}`).emit('video:recording-stopped', {
-        userId,
-        userName: socket.user?.name,
-        roomId
-      });
-
-      console.log(`Recording stopped in room ${roomId} by ${socket.user?.name}`);
-    } catch (error) {
-      console.error('Error stopping recording:', error);
-    }
-  });
-
-  // Get current video call participants
-  socket.on('video:get-participants', async (data: { roomId: string }) => {
-    try {
-      const { roomId } = data;
-      const userId = socket.userId!;
-
-      // Check if user is authorized
-      const isAuthorized = await isUserInRoom(userId, roomId);
-      if (!isAuthorized) {
-        socket.emit('video:error', { message: 'You are not authorized to view participants in this room' });
-        return;
-      }
-
-      // Get sockets in the video call room
-      const sockets = await io.in(`video:${roomId}`).fetchSockets();
-      const participants = sockets.map((s: any) => {
-        const authenticatedSocket = s as AuthenticatedSocket;
-        return {
-          userId: authenticatedSocket.userId,
-          userName: authenticatedSocket.user?.name,
-          socketId: s.id
-        };
-      });
-
-      socket.emit('video:participants', {
-        participants,
-        roomId
-      });
-    } catch (error) {
-      console.error('Error getting video participants:', error);
-      socket.emit('video:error', { message: 'Failed to get video participants' });
+      console.error('Error handling recording request:', error);
+      socket.emit('video:error', { message: 'Failed to handle recording request' });
     }
   });
 };

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useRoom } from '@/lib/room';
-import { EnhancedCollaborativeLayout } from '@/components/layout/EnhancedCollaborativeLayout';
+import { NewCollaborativeLayout } from '@/components/layout/NewCollaborativeLayout';
 import { getBoilerplate } from '@/lib/codeBoilerplates';
 
 export default function RoomEditorPage() {
@@ -15,7 +15,7 @@ export default function RoomEditorPage() {
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Editor state
+  // Editor state - will be updated from room data
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
 
@@ -31,12 +31,6 @@ export default function RoomEditorPage() {
       
       await joinRoom(roomId, '', router);
       
-      // Load default boilerplate code
-      const boilerplate = getBoilerplate(language);
-      if (boilerplate) {
-        setCode(boilerplate.code);
-      }
-      
     } catch (error: unknown) {
       console.error('Failed to join room:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to join room';
@@ -44,7 +38,7 @@ export default function RoomEditorPage() {
     } finally {
       setIsJoining(false);
     }
-  }, [user, roomId, joinRoom, router, language]);
+  }, [user, roomId, joinRoom, router]);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -56,6 +50,22 @@ export default function RoomEditorPage() {
       handleJoinRoom();
     }
   }, [user, isLoading, roomId, currentRoom, router, handleJoinRoom]);
+
+  // Update local state when room data is loaded
+  useEffect(() => {
+    if (currentRoom) {
+      setLanguage(currentRoom.language || 'javascript');
+      setCode(currentRoom.code || '');
+      
+      // Load boilerplate code only if room has no existing code
+      if (!currentRoom.code || currentRoom.code.trim() === '') {
+        const boilerplate = getBoilerplate(currentRoom.language || 'javascript');
+        if (boilerplate) {
+          setCode(boilerplate.code);
+        }
+      }
+    }
+  }, [currentRoom]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -139,7 +149,7 @@ export default function RoomEditorPage() {
 
   return (
     <div className="h-screen">
-      <EnhancedCollaborativeLayout
+      <NewCollaborativeLayout
         roomId={currentRoom.id}
         initialLanguage={language}
         initialCode={code}

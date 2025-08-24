@@ -52,7 +52,7 @@ exports.createRoomSchema = joi_1.default.object({
         'number.min': 'Room must allow at least 2 users',
         'number.max': 'Room cannot exceed 50 users',
     }),
-    language: joi_1.default.string().valid('javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'go', 'rust', 'php', 'html', 'css', 'sql').default('javascript').messages({
+    language: joi_1.default.string().valid('javascript', 'python', 'java', 'cpp').default('javascript').messages({
         'any.only': 'Please select a valid programming language',
     }),
 });
@@ -73,7 +73,7 @@ exports.updateRoomSchema = joi_1.default.object({
         'number.min': 'Room must allow at least 2 users',
         'number.max': 'Room cannot exceed 50 users',
     }),
-    language: joi_1.default.string().valid('javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'go', 'rust', 'php', 'ruby').optional().messages({
+    language: joi_1.default.string().valid('javascript', 'python', 'java', 'cpp').optional().messages({
         'any.only': 'Please select a valid programming language',
     }),
 });
@@ -90,7 +90,7 @@ exports.executeCodeSchema = joi_1.default.object({
     code: joi_1.default.string().required().messages({
         'any.required': 'Code is required',
     }),
-    language: joi_1.default.string().valid('javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'go', 'rust', 'php', 'ruby').required().messages({
+    language: joi_1.default.string().valid('javascript', 'python', 'java', 'cpp').required().messages({
         'any.only': 'Please select a valid programming language',
         'any.required': 'Language is required',
     }),
@@ -164,7 +164,7 @@ exports.getRoomsQuerySchema = joi_1.default.object({
     page: joi_1.default.number().integer().min(1).default(1),
     limit: joi_1.default.number().integer().min(1).max(100).default(10),
     search: joi_1.default.string().max(100).optional(),
-    language: joi_1.default.string().valid('javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'go', 'rust', 'php', 'html', 'css', 'sql').optional(),
+    language: joi_1.default.string().valid('javascript', 'python', 'java', 'cpp').optional(),
     isPublic: joi_1.default.boolean().optional(),
 });
 exports.codeExecutionSchema = joi_1.default.object({
@@ -173,7 +173,7 @@ exports.codeExecutionSchema = joi_1.default.object({
         'string.max': 'Code too long (max 10,000 characters)',
         'any.required': 'Code is required'
     }),
-    language: joi_1.default.string().required().valid('javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'go', 'rust', 'php', 'html', 'css', 'sql').messages({
+    language: joi_1.default.string().required().valid('javascript', 'python', 'java', 'cpp').messages({
         'any.only': 'Unsupported programming language',
         'any.required': 'Language is required'
     }),

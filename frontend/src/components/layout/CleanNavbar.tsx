@@ -19,9 +19,11 @@ import toast from 'react-hot-toast';
 interface CleanNavbarProps {
   onRunCode: () => void;
   isExecuting?: boolean;
+  currentLanguage?: string;
+  onLeaveRoom?: () => void;
 }
 
-export function CleanNavbar({ onRunCode, isExecuting = false }: CleanNavbarProps) {
+export function CleanNavbar({ onRunCode, isExecuting = false, currentLanguage = 'javascript', onLeaveRoom }: CleanNavbarProps) {
   const { user, logout } = useAuth();
   const { currentRoom } = useRoom();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -61,9 +63,22 @@ export function CleanNavbar({ onRunCode, isExecuting = false }: CleanNavbarProps
   const userCount = currentRoom?.users?.length || 0;
   const isPublic = currentRoom?.isPublic || false;
 
+  // Get language display info
+  const getLanguageDisplay = (lang: string) => {
+    const languageMap: { [key: string]: { name: string; icon: string; color: string } } = {
+      javascript: { name: 'JavaScript', icon: '⚡', color: 'bg-yellow-500' },
+      python: { name: 'Python', icon: '🐍', color: 'bg-green-500' },
+      java: { name: 'Java', icon: '☕', color: 'bg-orange-500' },
+      cpp: { name: 'C++', icon: '⚙️', color: 'bg-blue-500' }
+    };
+    return languageMap[lang] || { name: lang, icon: '📝', color: 'bg-gray-500' };
+  };
+
+  const languageInfo = getLanguageDisplay(currentLanguage);
+
   return (
     <motion.header 
-      className="fixed top-0 left-0 right-0 bg-gray-900 shadow-lg border-b border-gray-700 z-50"
+      className="navbar-fixed bg-gray-900 shadow-lg border-b border-gray-700 z-50 h-16"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -71,7 +86,7 @@ export function CleanNavbar({ onRunCode, isExecuting = false }: CleanNavbarProps
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           
-          {/* Left Section - Logo + Room Info */}
+          {/* Left Section - Logo + Room Info + Language Indicator */}
           <div className="flex items-center space-x-6">
             {/* Logo */}
             <div className="flex items-center space-x-3">
@@ -107,6 +122,13 @@ export function CleanNavbar({ onRunCode, isExecuting = false }: CleanNavbarProps
                 </Button>
               </div>
             </div>
+
+            {/* Language Indicator */}
+            <div className="flex items-center space-x-2 px-3 py-1 bg-gray-800 rounded-lg border border-gray-600">
+              <span className="text-lg">{languageInfo.icon}</span>
+              <span className="text-sm font-medium text-white">{languageInfo.name}</span>
+              <div className={`w-2 h-2 rounded-full ${languageInfo.color}`}></div>
+            </div>
           </div>
 
           {/* Center Section - RUN Button */}
@@ -126,8 +148,19 @@ export function CleanNavbar({ onRunCode, isExecuting = false }: CleanNavbarProps
             </Button>
           </div>
 
-          {/* Right Section - User Management */}
+          {/* Right Section - User Management + Leave Room */}
           <div className="flex items-center space-x-4">
+            {/* Leave Room Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onLeaveRoom}
+              className="bg-red-600 border-red-500 text-white hover:bg-red-700 hover:border-red-600"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Leave Room
+            </Button>
+
             {/* User Count with Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <Button

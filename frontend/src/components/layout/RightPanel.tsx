@@ -120,7 +120,7 @@ export function RightPanel({ roomId, activePanels, layoutMode }: RightPanelProps
                 </h3>
               </div>
               <div className="h-[calc(100%-60px)]">
-                <EnhancedVideoCall roomId={roomId} />
+                <EnhancedVideoCall />
               </div>
             </div>
           </motion.div>

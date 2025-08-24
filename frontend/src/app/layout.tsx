@@ -1,8 +1,10 @@
 import * as React from 'react';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Script from 'next/script';
 import '@/styles/globals.css';
 import { Providers } from './providers';
+import { ExtensionFix } from '@/components/ui/ExtensionFix';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -59,7 +61,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <Script 
+          src="/error-handler.js" 
+          strategy="beforeInteractive"
+          id="extension-error-handler" 
+        />
+      </head>
       <body className={inter.className}>
+        <ExtensionFix />
         <Providers>
           <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             {children}

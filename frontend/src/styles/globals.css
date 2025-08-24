@@ -99,6 +99,63 @@ select {
   user-select: none;
 }
 
+/* Fix for navbar and editor layout collision */
+.collaborative-editor-layout {
+  padding-top: 0; /* Remove padding since we're using marginTop */
+}
+
+.navbar-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4rem; /* 64px - consistent height */
+  z-index: 50;
+}
+
+.editor-container {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  margin-top: 0; /* Ensure no additional top margin */
+}
+
+/* Ensure Monaco Editor doesn't overlap with navbar */
+.monaco-editor-container {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  min-height: 0; /* Allow flex shrinking */
+}
+
+/* Layout controls positioning */
+.layout-controls {
+  position: relative;
+  z-index: 10;
+}
+
+/* Resizable layout container */
+.resizable-layout-container {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Fix for editor toolbar visibility */
+.editor-toolbar {
+  position: relative;
+  z-index: 20;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Ensure proper spacing for main content area */
+.main-content-area {
+  margin-top: 4rem; /* 64px - matches navbar height */
+  height: calc(100vh - 4rem); /* Account for navbar height */
+  overflow: hidden;
+}
+
 /* Smooth transitions */
 .smooth-transition {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

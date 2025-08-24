@@ -10,7 +10,6 @@ import {
   Monitor,
   Smartphone,
   Tablet,
-  Save,
   Settings,
   ChevronDown
 } from 'lucide-react';
@@ -29,13 +28,12 @@ interface LayoutPreset {
   description: string;
   icon: React.ReactNode;
   layout: LayoutConfig;
-  category: 'workflow' | 'device' | 'custom';
+  category: 'workflow' | 'device';
 }
 
 interface LayoutPresetsProps {
   currentLayout: LayoutConfig;
   onLayoutChange: (layout: LayoutConfig) => void;
-  onSavePreset?: (preset: LayoutPreset) => void;
   onLoadPreset?: (preset: LayoutPreset) => void;
 }
 
@@ -98,7 +96,7 @@ const DEFAULT_PRESETS: LayoutPreset[] = [
   {
     id: 'desktop',
     name: 'Desktop',
-    description: 'Full desktop layout with all panels',
+    description: 'Optimized for large screens',
     icon: <Monitor className="w-4 h-4" />,
     layout: {
       editor: { width: 70, height: 60 },
@@ -111,108 +109,50 @@ const DEFAULT_PRESETS: LayoutPreset[] = [
   {
     id: 'tablet',
     name: 'Tablet',
-    description: 'Optimized for tablet screens',
+    description: 'Optimized for medium screens',
     icon: <Tablet className="w-4 h-4" />,
     layout: {
       editor: { width: 75, height: 65 },
       output: { width: 25, height: 45 },
-      chat: { width: 25, height: 27.5 },
-      video: { width: 25, height: 27.5 }
+      chat: { width: 25, height: 25 },
+      video: { width: 25, height: 30 }
     },
     category: 'device'
   },
   {
     id: 'mobile',
     name: 'Mobile',
-    description: 'Mobile-optimized layout',
+    description: 'Optimized for small screens',
     icon: <Smartphone className="w-4 h-4" />,
     layout: {
-      editor: { width: 100, height: 80 },
-      output: { width: 100, height: 20 },
-      chat: { width: 100, height: 0 },
-      video: { width: 100, height: 0 }
+      editor: { width: 85, height: 70 },
+      output: { width: 15, height: 50 },
+      chat: { width: 15, height: 25 },
+      video: { width: 15, height: 25 }
     },
     category: 'device'
   }
 ];
 
-export function LayoutPresets({
-  currentLayout,
-  onLayoutChange,
-  onSavePreset,
-  onLoadPreset
-}: LayoutPresetsProps) {
+export function LayoutPresets({ currentLayout, onLayoutChange, onLoadPreset }: LayoutPresetsProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'workflow' | 'device' | 'custom'>('all');
-  const [customPresets, setCustomPresets] = useState<LayoutPreset[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'workflow' | 'device'>('all');
 
-  // Load custom presets from localStorage
-  useState(() => {
-    try {
-      const saved = localStorage.getItem('codemitra-custom-presets');
-      if (saved) {
-        setCustomPresets(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.warn('Failed to load custom presets:', error);
-    }
-  });
-
-  // Save custom preset
-  const handleSaveCustomPreset = () => {
-    const presetName = prompt('Enter preset name:');
-    if (!presetName) return;
-
-    const newPreset: LayoutPreset = {
-      id: `custom-${Date.now()}`,
-      name: presetName,
-      description: 'Custom layout configuration',
-      icon: <Save className="w-4 h-4" />,
-      layout: currentLayout,
-      category: 'custom'
-    };
-
-    const updatedPresets = [...customPresets, newPreset];
-    setCustomPresets(updatedPresets);
-    
-    try {
-      localStorage.setItem('codemitra-custom-presets', JSON.stringify(updatedPresets));
-    } catch (error) {
-      console.warn('Failed to save custom preset:', error);
-    }
-
-    onSavePreset?.(newPreset);
-  };
-
-  // Load preset
   const handleLoadPreset = (preset: LayoutPreset) => {
     onLayoutChange(preset.layout);
     onLoadPreset?.(preset);
     setIsOpen(false);
   };
 
-  // Delete custom preset
-  const handleDeleteCustomPreset = (presetId: string) => {
-    const updatedPresets = customPresets.filter(p => p.id !== presetId);
-    setCustomPresets(updatedPresets);
-    
-    try {
-      localStorage.setItem('codemitra-custom-presets', JSON.stringify(updatedPresets));
-    } catch (error) {
-      console.warn('Failed to delete custom preset:', error);
-    }
-  };
-
   // Filter presets by category
-  const filteredPresets = [...DEFAULT_PRESETS, ...customPresets].filter(preset => 
+  const filteredPresets = DEFAULT_PRESETS.filter(preset => 
     selectedCategory === 'all' || preset.category === selectedCategory
   );
 
   const categories = [
-    { id: 'all', name: 'All', count: DEFAULT_PRESETS.length + customPresets.length },
+    { id: 'all', name: 'All', count: DEFAULT_PRESETS.length },
     { id: 'workflow', name: 'Workflow', count: DEFAULT_PRESETS.filter(p => p.category === 'workflow').length },
-    { id: 'device', name: 'Device', count: DEFAULT_PRESETS.filter(p => p.category === 'device').length },
-    { id: 'custom', name: 'Custom', count: customPresets.length }
+    { id: 'device', name: 'Device', count: DEFAULT_PRESETS.filter(p => p.category === 'device').length }
   ];
 
   return (
@@ -243,15 +183,7 @@ export function LayoutPresets({
             <div className="p-3 border-b border-gray-600">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-white">Layout Presets</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSaveCustomPreset}
-                  className="h-6 px-2 bg-blue-600 border-blue-500 text-white hover:bg-blue-700 text-xs"
-                >
-                  <Save className="w-3 h-3 mr-1" />
-                  Save Current
-                </Button>
+                <span className="text-xs text-gray-400">Quick layout switching</span>
               </div>
             </div>
 
@@ -280,30 +212,14 @@ export function LayoutPresets({
                   className="p-3 hover:bg-gray-700 transition-colors duration-150 cursor-pointer border-b border-gray-600 last:border-b-0"
                   onClick={() => handleLoadPreset(preset)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-blue-400">
-                        {preset.icon}
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-white">{preset.name}</h4>
-                        <p className="text-xs text-gray-400">{preset.description}</p>
-                      </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="text-blue-400">
+                      {preset.icon}
                     </div>
-                    
-                    {preset.category === 'custom' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteCustomPreset(preset.id);
-                        }}
-                        className="h-6 px-2 bg-red-600 border-red-500 text-white hover:bg-red-700 text-xs"
-                      >
-                        ×
-                      </Button>
-                    )}
+                    <div>
+                      <h4 className="text-sm font-medium text-white">{preset.name}</h4>
+                      <p className="text-xs text-gray-400">{preset.description}</p>
+                    </div>
                   </div>
                   
                   {/* Layout Preview */}

@@ -22,6 +22,7 @@ const setupCodeHandlers = (io, socket) => {
         try {
             const { roomId, code, language } = data;
             const userId = socket.userId;
+            console.log(`Code update from user ${socket.user?.name} in room ${roomId}`);
             const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('code:error', { message: 'You are not authorized to edit code in this room' });
@@ -40,7 +41,8 @@ const setupCodeHandlers = (io, socket) => {
                 language,
                 userId,
                 userName: socket.user?.name,
-                roomId
+                roomId,
+                timestamp: Date.now()
             });
             console.log(`Code updated in room ${roomId} by ${socket.user?.name}`);
         }
@@ -66,7 +68,8 @@ const setupCodeHandlers = (io, socket) => {
                 language,
                 userId,
                 userName: socket.user?.name,
-                roomId
+                roomId,
+                timestamp: Date.now()
             });
             console.log(`Language changed to ${language} in room ${roomId} by ${socket.user?.name}`);
         }
@@ -75,156 +78,119 @@ const setupCodeHandlers = (io, socket) => {
             socket.emit('code:error', { message: 'Failed to change language' });
         }
     });
-    socket.on('code:input-update', async (data) => {
-        try {
-            const { roomId, input } = data;
-            const userId = socket.userId;
-            const isAuthorized = await isUserInRoom(userId, roomId);
-            if (!isAuthorized) {
-                socket.emit('code:error', { message: 'You are not authorized to update input in this room' });
-                return;
-            }
-            await prisma_1.prisma.room.update({
-                where: { id: roomId },
-                data: { input }
-            });
-            socket.to(roomId).emit('code:input-updated', {
-                input,
-                userId,
-                userName: socket.user?.name,
-                roomId
-            });
-            console.log(`Input updated in room ${roomId} by ${socket.user?.name}`);
-        }
-        catch (error) {
-            console.error('Error updating input:', error);
-            socket.emit('code:error', { message: 'Failed to update input' });
-        }
-    });
     socket.on('code:execute', async (data) => {
         try {
             const { roomId, code, language, input = '' } = data;
             const userId = socket.userId;
+            console.log(`Code execution request from user ${socket.user?.name} in room ${roomId}`);
             const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('code:error', { message: 'You are not authorized to execute code in this room' });
                 return;
             }
-            const executionLog = await prisma_1.prisma.executionLog.create({
-                data: {
-                    code,
-                    language,
-                    input,
-                    roomId,
-                    userId,
-                    status: 'pending'
-                }
-            });
             io.to(roomId).emit('code:execution-started', {
-                executionId: executionLog.id,
                 userId,
                 userName: socket.user?.name,
-                roomId
-            });
-            await codeExecutionQueue.add('execute-code', {
-                executionId: executionLog.id,
-                code,
                 language,
+                roomId,
+                timestamp: Date.now()
+            });
+            const job = await codeExecutionQueue.add('execute', {
+                executionId: `exec_${Date.now()}_${userId}`,
+                language,
+                code,
                 input,
                 roomId,
-                userId
+                userId,
+                timestamp: Date.now()
+            }, {
+                removeOnComplete: true,
+                removeOnFail: true
             });
-            console.log(`Code execution started in room ${roomId} by ${socket.user?.name}`);
+            console.log(`Code execution job ${job.id} added to queue for room ${roomId}`);
+            socket.emit('code:execution-queued', {
+                jobId: job.id,
+                message: 'Code execution queued successfully'
+            });
         }
         catch (error) {
-            console.error('Error executing code:', error);
-            socket.emit('code:error', { message: 'Failed to execute code' });
+            console.error('Error queuing code execution:', error);
+            socket.emit('code:error', { message: 'Failed to queue code execution' });
         }
     });
-    socket.on('code:cursor-update', async (data) => {
+    socket.on('cursor:position', async (data) => {
         try {
-            const { roomId, position } = data;
+            const { roomId, position, selection } = data;
             const userId = socket.userId;
             const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
-            socket.to(roomId).emit('code:cursor-updated', {
-                position,
+            socket.to(roomId).emit('cursor:position-updated', {
                 userId,
                 userName: socket.user?.name,
-                roomId
+                position,
+                selection,
+                roomId,
+                timestamp: Date.now()
             });
         }
         catch (error) {
             console.error('Error updating cursor position:', error);
         }
     });
-    socket.on('code:selection-update', async (data) => {
+    socket.on('code:sync-request', async (data) => {
         try {
-            const { roomId, selection } = data;
+            const { roomId } = data;
             const userId = socket.userId;
             const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
-            socket.to(roomId).emit('code:selection-updated', {
-                selection,
-                userId,
-                userName: socket.user?.name,
-                roomId
+            const room = await prisma_1.prisma.room.findUnique({
+                where: { id: roomId },
+                select: {
+                    code: true,
+                    language: true,
+                    input: true,
+                    output: true
+                }
             });
+            if (room) {
+                socket.emit('code:sync-response', {
+                    code: room.code,
+                    language: room.language,
+                    input: room.input,
+                    output: room.output,
+                    roomId,
+                    timestamp: Date.now()
+                });
+            }
         }
         catch (error) {
-            console.error('Error updating selection:', error);
+            console.error('Error syncing code:', error);
         }
     });
-    socket.on('code:format', async (data) => {
+    socket.on('code:auto-save', async (data) => {
         try {
             const { roomId, code, language } = data;
             const userId = socket.userId;
             const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
-                socket.emit('code:error', { message: 'You are not authorized to format code in this room' });
                 return;
             }
-            await codeExecutionQueue.add('format-code', {
-                code,
-                language,
-                roomId,
-                userId
-            });
-            console.log(`Code formatting requested in room ${roomId} by ${socket.user?.name}`);
-        }
-        catch (error) {
-            console.error('Error formatting code:', error);
-            socket.emit('code:error', { message: 'Failed to format code' });
-        }
-    });
-    socket.on('code:save', async (data) => {
-        try {
-            const { roomId, code, language } = data;
-            const userId = socket.userId;
-            const isAuthorized = await isUserInRoom(userId, roomId);
-            if (!isAuthorized) {
-                socket.emit('code:error', { message: 'You are not authorized to save code in this room' });
-                return;
+            const updateData = { code };
+            if (language) {
+                updateData.language = language;
             }
             await prisma_1.prisma.room.update({
                 where: { id: roomId },
-                data: { code, language }
+                data: updateData
             });
-            io.to(roomId).emit('code:saved', {
-                userId,
-                userName: socket.user?.name,
-                roomId,
-                timestamp: new Date().toISOString()
-            });
-            console.log(`Code saved in room ${roomId} by ${socket.user?.name}`);
+            console.log(`Auto-save completed for room ${roomId} by ${socket.user?.name}`);
         }
         catch (error) {
-            console.error('Error saving code:', error);
-            socket.emit('code:error', { message: 'Failed to save code' });
+            console.error('Error auto-saving code:', error);
         }
     });
 };

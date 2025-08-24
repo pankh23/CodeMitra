@@ -40,7 +40,7 @@ export function CleanEditorToolbar({
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-gray-800 border-b border-gray-700 px-4 py-3"
+      className="bg-gray-800 border-b border-gray-700 px-4 py-3 editor-toolbar"
     >
       <div className="flex items-center justify-between">
         {/* Left Section - Language Selection */}

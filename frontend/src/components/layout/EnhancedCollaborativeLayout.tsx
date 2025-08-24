@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { EnhancedCodeExecutionPanel } from '@/components/editor/EnhancedCodeExecutionPanel';
 import { CleanNavbar } from './CleanNavbar';
-import { CleanEditorToolbar } from './CleanEditorToolbar';
 import { ResizableLayout } from './ResizableLayout';
 import { LayoutPresets } from './LayoutPresets';
 import { getBoilerplate } from '@/lib/codeBoilerplates';
@@ -13,6 +12,7 @@ import { useRoom } from '@/lib/room';
 import { useSocket } from '@/lib/socket';
 import { EnhancedChatInterface } from '@/components/chat/EnhancedChatInterface';
 import { EnhancedVideoCall } from '@/components/video/EnhancedVideoCall';
+import { useRouter } from 'next/navigation';
 
 interface LayoutConfig {
   editor: { width: number; height: number };
@@ -37,8 +37,9 @@ export function EnhancedCollaborativeLayout({
   onLanguageChange
 }: EnhancedCollaborativeLayoutProps) {
   const { user } = useAuth();
-  const { currentRoom } = useRoom();
+  const { currentRoom, leaveRoom } = useRoom();
   const { socket, isConnected } = useSocket();
+  const router = useRouter();
   
   const [code, setCode] = useState(initialCode);
   const [language, setLanguage] = useState(initialLanguage);
@@ -50,16 +51,27 @@ export function EnhancedCollaborativeLayout({
     video: { width: 30, height: 30 }
   });
 
-  // Load boilerplate code when language changes
+  // Load boilerplate code only when there's no existing code for initial load
   useEffect(() => {
-    if (!code.trim()) {
+    // Only load boilerplate if no code exists (initial empty state)
+    if (!code.trim() && !initialCode.trim()) {
       const boilerplate = getBoilerplate(language);
       if (boilerplate) {
         setCode(boilerplate.code);
         onCodeChange?.(boilerplate.code);
       }
     }
-  }, [language, code, onCodeChange]);
+  }, [language, code, onCodeChange, initialCode]);
+
+  // Update local state when props change (from room data)
+  useEffect(() => {
+    if (initialCode !== code) {
+      setCode(initialCode);
+    }
+    if (initialLanguage !== language) {
+      setLanguage(initialLanguage);
+    }
+  }, [initialCode, initialLanguage, code, language]);
 
   // Handle code changes
   const handleCodeChange = useCallback((value: string) => {
@@ -81,12 +93,9 @@ export function EnhancedCollaborativeLayout({
     setLanguage(newLanguage);
     onLanguageChange?.(newLanguage);
     
-    // Load new boilerplate for the language
-    const boilerplate = getBoilerplate(newLanguage);
-    if (boilerplate) {
-      setCode(boilerplate.code);
-      onCodeChange?.(boilerplate.code);
-    }
+    // Only load boilerplate if user explicitly wants to reset code
+    // For now, we'll preserve existing code when language changes
+    // TODO: Add a UI option to reset to boilerplate if needed
     
     // Sync language change with other users
     if (socket && isConnected && currentRoom) {
@@ -95,7 +104,7 @@ export function EnhancedCollaborativeLayout({
         language: newLanguage
       });
     }
-  }, [socket, isConnected, currentRoom, user?.id, onLanguageChange, onCodeChange]);
+  }, [socket, isConnected, currentRoom, user?.id, onLanguageChange]);
 
   // Handle execution start
   const handleExecutionStart = useCallback(() => {
@@ -174,6 +183,29 @@ export function EnhancedCollaborativeLayout({
     }
   }, [socket, isConnected, currentRoom]);
 
+  // Handle leave room
+  const handleLeaveRoom = useCallback(async () => {
+    try {
+      if (currentRoom && socket) {
+        // Disconnect from room WebSocket
+        socket.emit('room:leave', { roomId: currentRoom.id });
+        
+        // Leave room through room context
+        await leaveRoom(currentRoom.id);
+        
+        // Redirect to home page
+        router.push('/');
+      } else {
+        // If no room context, just redirect to home
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Error leaving room:', error);
+      // Redirect to home even if there's an error
+      router.push('/');
+    }
+  }, [currentRoom, socket, leaveRoom, router]);
+
   // Handle layout changes
   const handleLayoutChange = useCallback((newLayout: LayoutConfig) => {
     setCurrentLayout(newLayout);
@@ -195,77 +227,75 @@ export function EnhancedCollaborativeLayout({
   }, []);
 
   return (
-    <div className="h-screen bg-gray-900 flex flex-col">
-      {/* Clean Navbar */}
+    <div className="h-screen bg-gray-900 flex flex-col collaborative-editor-layout">
+      {/* Clean Navbar - Fixed positioned */}
       <CleanNavbar 
         onRunCode={handleRunCode}
         isExecuting={isExecuting}
+        currentLanguage={language}
+        onLeaveRoom={handleLeaveRoom}
       />
 
-      {/* Layout Controls */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
-        <div className="flex items-center space-x-4">
-          <span className="text-sm text-gray-300">Layout Controls:</span>
-          <LayoutPresets
-            currentLayout={currentLayout}
-            onLayoutChange={handleLayoutChange}
-            onLoadPreset={handlePresetLoad}
-          />
+      {/* Main Content Area - Starts below navbar with proper spacing */}
+      <div className="flex-1 overflow-hidden main-content-area" style={{ marginTop: '4rem' }}> {/* 4rem = 64px to account for navbar height */}
+        {/* Layout Controls - Positioned relative to main content area */}
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 layout-controls">
+          <div className="flex items-center space-x-4">
+            <LayoutPresets
+              currentLayout={currentLayout}
+              onLayoutChange={handleLayoutChange}
+              onLoadPreset={handlePresetLoad}
+            />
+          </div>
+          
+          <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <span>Drag borders to resize • Double-click to reset</span>
+          </div>
         </div>
-        
-        <div className="flex items-center space-x-2 text-sm text-gray-400">
-          <span>Drag borders to resize • Double-click to reset • Use presets for quick layouts</span>
-        </div>
-      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden">
-        <ResizableLayout
-          onLayoutChange={handleLayoutChange}
-          initialLayout={currentLayout}
-        >
-          {{
-            editor: (
-              <div className="h-full flex flex-col">
-                <CleanEditorToolbar
-                  language={language}
-                  onLanguageChange={handleLanguageChange}
-                  code={code}
-                />
-                <div className="flex-1">
-                  <MonacoEditor
-                    roomId={roomId}
+        {/* Resizable Layout Container */}
+        <div className="flex-1 overflow-hidden resizable-layout-container">
+          <ResizableLayout
+            onLayoutChange={handleLayoutChange}
+            initialLayout={currentLayout}
+          >
+            {{
+              editor: (
+                <div className="h-full flex flex-col editor-container">
+                  <div className="flex-1 monaco-editor-container" style={{ minHeight: '0' }}>
+                    <MonacoEditor
+                      roomId={currentRoom?.id || ''}
+                      language={language}
+                      initialCode={code}
+                      onCodeChange={handleCodeChange}
+                    />
+                  </div>
+                </div>
+              ),
+              output: (
+                <div className="h-full bg-gray-800 border-l border-gray-700">
+                  <EnhancedCodeExecutionPanel
+                    code={code}
                     language={language}
-                    initialCode={code}
-                    onCodeChange={handleCodeChange}
-                    theme="dark"
+                    roomId={currentRoom?.id || ''}
+                    onExecutionStart={handleExecutionStart}
+                    onExecutionComplete={() => setIsExecuting(false)}
                   />
                 </div>
-              </div>
-            ),
-            output: (
-              <div className="h-full bg-gray-800 border-l border-gray-700">
-                <EnhancedCodeExecutionPanel
-                  code={code}
-                  language={language}
-                  roomId={roomId}
-                  onExecutionStart={handleExecutionStart}
-                  onExecutionComplete={() => setIsExecuting(false)}
-                />
-              </div>
-            ),
-            chat: (
-              <div className="h-full bg-gray-800 border-l border-gray-700">
-                <EnhancedChatInterface roomId={roomId} />
-              </div>
-            ),
-            video: (
-              <div className="h-full bg-gray-800 border-l border-gray-700">
-                <EnhancedVideoCall roomId={roomId} />
-              </div>
-            )
-          }}
-        </ResizableLayout>
+              ),
+              chat: (
+                <div className="h-full bg-gray-800 border-l border-gray-700">
+                  <EnhancedChatInterface roomId={currentRoom?.id || ''} />
+                </div>
+              ),
+              video: (
+                <div className="h-full bg-gray-800 border-l border-gray-700">
+                  <EnhancedVideoCall />
+                </div>
+              )
+            }}
+          </ResizableLayout>
+        </div>
       </div>
     </div>
   );

@@ -32,7 +32,8 @@ const setupRoomHandlers = (io, socket) => {
             }
             socket.to(roomId).emit('room:user-joined', {
                 user: socket.user,
-                roomId
+                roomId,
+                timestamp: new Date()
             });
             socket.emit('room:joined', {
                 room,
@@ -44,6 +45,19 @@ const setupRoomHandlers = (io, socket) => {
                 input: room.input,
                 output: room.output,
                 roomId
+            });
+            const updatedUsers = room.users.map(ru => ({
+                id: ru.user.id,
+                name: ru.user.name,
+                email: ru.user.email,
+                avatar: ru.user.avatar,
+                role: ru.role,
+                joinedAt: ru.joinedAt
+            }));
+            io.to(roomId).emit('room:users', {
+                users: updatedUsers,
+                roomId,
+                timestamp: new Date()
             });
             console.log(`User ${socket.user?.name} joined room ${roomId}`);
         }
@@ -60,9 +74,37 @@ const setupRoomHandlers = (io, socket) => {
             socket.to(roomId).emit('room:user-left', {
                 userId,
                 userName: socket.user?.name,
-                roomId
+                roomId,
+                timestamp: new Date()
             });
             socket.emit('room:left', { roomId });
+            const room = await prisma_1.prisma.room.findUnique({
+                where: { id: roomId },
+                include: {
+                    users: {
+                        include: {
+                            user: {
+                                select: { id: true, name: true, email: true, avatar: true }
+                            }
+                        }
+                    }
+                }
+            });
+            if (room) {
+                const updatedUsers = room.users.map(ru => ({
+                    id: ru.user.id,
+                    name: ru.user.name,
+                    email: ru.user.email,
+                    avatar: ru.user.avatar,
+                    role: ru.role,
+                    joinedAt: ru.joinedAt
+                }));
+                io.to(roomId).emit('room:users', {
+                    users: updatedUsers,
+                    roomId,
+                    timestamp: new Date()
+                });
+            }
             console.log(`User ${socket.user?.name} left room ${roomId}`);
         }
         catch (error) {
@@ -95,14 +137,72 @@ const setupRoomHandlers = (io, socket) => {
                 socket.emit('room:error', { message: 'Room not found' });
                 return;
             }
+            const users = room.users.map(ru => ({
+                id: ru.user.id,
+                name: ru.user.name,
+                email: ru.user.email,
+                avatar: ru.user.avatar,
+                role: ru.role,
+                joinedAt: ru.joinedAt
+            }));
             socket.emit('room:users', {
-                users: room.users,
-                roomId
+                users,
+                roomId,
+                timestamp: new Date()
             });
         }
         catch (error) {
             console.error('Error getting room users:', error);
             socket.emit('room:error', { message: 'Failed to get room users' });
+        }
+    });
+    socket.on('room:get-info', async (data) => {
+        try {
+            const { roomId } = data;
+            const userId = socket.userId;
+            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            if (!isAuthorized) {
+                socket.emit('room:error', { message: 'You are not authorized to view this room' });
+                return;
+            }
+            const room = await prisma_1.prisma.room.findUnique({
+                where: { id: roomId },
+                include: {
+                    owner: {
+                        select: { id: true, name: true, avatar: true }
+                    },
+                    users: {
+                        include: {
+                            user: {
+                                select: { id: true, name: true, avatar: true }
+                            }
+                        }
+                    }
+                }
+            });
+            if (!room) {
+                socket.emit('room:error', { message: 'Room not found' });
+                return;
+            }
+            socket.emit('room:info', {
+                room: {
+                    id: room.id,
+                    name: room.name,
+                    description: room.description,
+                    isPublic: room.isPublic,
+                    maxUsers: room.maxUsers,
+                    language: room.language,
+                    owner: room.owner,
+                    userCount: room.users.length,
+                    createdAt: room.createdAt,
+                    updatedAt: room.updatedAt
+                },
+                roomId
+            });
+        }
+        catch (error) {
+            console.error('Error getting room info:', error);
+            socket.emit('room:error', { message: 'Failed to get room info' });
         }
     });
     socket.on('room:update-settings', async (data) => {
@@ -135,7 +235,8 @@ const setupRoomHandlers = (io, socket) => {
             });
             io.to(roomId).emit('room:settings-updated', {
                 room: updatedRoom,
-                roomId
+                roomId,
+                timestamp: new Date()
             });
             console.log(`Room ${roomId} settings updated by ${socket.user?.name}`);
         }
@@ -172,8 +273,36 @@ const setupRoomHandlers = (io, socket) => {
             io.to(roomId).emit('room:user-kicked', {
                 userId: targetUserId,
                 kickedBy: socket.user?.name,
-                roomId
+                roomId,
+                timestamp: new Date()
             });
+            const updatedRoom = await prisma_1.prisma.room.findUnique({
+                where: { id: roomId },
+                include: {
+                    users: {
+                        include: {
+                            user: {
+                                select: { id: true, name: true, email: true, avatar: true }
+                            }
+                        }
+                    }
+                }
+            });
+            if (updatedRoom) {
+                const updatedUsers = updatedRoom.users.map(ru => ({
+                    id: ru.user.id,
+                    name: ru.user.name,
+                    email: ru.user.email,
+                    avatar: ru.user.avatar,
+                    role: ru.role,
+                    joinedAt: ru.joinedAt
+                }));
+                io.to(roomId).emit('room:users', {
+                    users: updatedUsers,
+                    roomId,
+                    timestamp: new Date()
+                });
+            }
             console.log(`User ${targetUserId} kicked from room ${roomId} by ${socket.user?.name}`);
         }
         catch (error) {

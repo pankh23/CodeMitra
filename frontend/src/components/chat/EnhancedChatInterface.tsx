@@ -36,6 +36,24 @@ interface ActiveUser {
   isTyping: boolean;
 }
 
+interface ChatMessageData {
+  id: string;
+  content: string;
+  user: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+  createdAt: string;
+  type?: 'text' | 'code' | 'file';
+}
+
+interface UserData {
+  id: string;
+  name: string;
+  avatar?: string;
+}
+
 interface EnhancedChatInterfaceProps {
   roomId?: string;
 }
@@ -59,7 +77,6 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -71,7 +88,7 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
     if (!socket || !isConnected || !currentRoom) return;
 
     // Listen for new messages
-    socket.on('chat:message-received', (data: { message: any }) => {
+    socket.on('chat:message-received', (data: { message: ChatMessageData }) => {
       const newMessage: Message = {
         id: data.message.id,
         text: data.message.content,
@@ -88,11 +105,11 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
     });
 
     // Listen for user presence updates
-    socket.on('room:users', (data: { users: any[] }) => {
-      const users = data.users.map((roomUser: any) => ({
-        id: roomUser.user.id,
-        name: roomUser.user.name,
-        avatar: roomUser.user.avatar,
+    socket.on('room:users', (data: { users: UserData[] }) => {
+      const users = data.users.map((roomUser: UserData) => ({
+        id: roomUser.id,
+        name: roomUser.name,
+        avatar: roomUser.avatar,
         isOnline: true,
         isTyping: false
       }));
@@ -100,14 +117,14 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
     });
 
     // Listen for typing indicators
-    socket.on('chat:user-typing', (data: { userId: string }) => {
+    socket.on('chat:user-typing', (data: { userId: string; userName: string }) => {
       setActiveUsers(prev => prev.map(u => 
         u.id === data.userId ? { ...u, isTyping: true } : u
       ));
     });
 
     // Listen for typing stop
-    socket.on('chat:user-stopped-typing', (data: { userId: string }) => {
+    socket.on('chat:user-stopped-typing', (data: { userId: string; userName: string }) => {
       setActiveUsers(prev => prev.map(u => 
         u.id === data.userId ? { ...u, isTyping: false } : u
       ));
@@ -120,6 +137,38 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
       ));
     });
 
+    // Listen for chat history
+    socket.on('chat:history', (data: { messages: ChatMessageData[]; pagination: { page: number; limit: number; total: number; pages: number } }) => {
+      const formattedMessages: Message[] = data.messages.map(msg => ({
+        id: msg.id,
+        text: msg.content,
+        sender: {
+          id: msg.user.id,
+          name: msg.user.name,
+          avatar: msg.user.avatar
+        },
+        timestamp: new Date(msg.createdAt),
+        type: msg.type || 'text',
+        status: 'delivered'
+      }));
+      setMessages(formattedMessages);
+    });
+
+    // Listen for message deletions
+    socket.on('chat:message-deleted', (data: { messageId: string; deletedBy: string }) => {
+      setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+    });
+
+    // Listen for message edits
+    socket.on('chat:message-edited', (data: { message: ChatMessageData }) => {
+      setMessages(prev => prev.map(msg => 
+        msg.id === data.message.id ? {
+          ...msg,
+          text: data.message.content
+        } : msg
+      ));
+    });
+
     // Load chat history
     socket.emit('chat:get-history', { roomId: currentRoom.id });
 
@@ -129,6 +178,9 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
       socket.off('chat:user-typing');
       socket.off('chat:user-stopped-typing');
       socket.off('chat:message-status');
+      socket.off('chat:history');
+      socket.off('chat:message-deleted');
+      socket.off('chat:message-edited');
     };
   }, [socket, isConnected, currentRoom]);
 
@@ -249,10 +301,6 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
       const totalChunks = Math.ceil(selectedFile.size / chunkSize);
       
       for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, selectedFile.size);
-        const chunk = selectedFile.slice(start, end);
-        
         // Simulate chunk upload delay
         await new Promise(resolve => setTimeout(resolve, 100));
         
@@ -275,31 +323,6 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
       alert('File upload failed');
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  // Convert file to base64 for transmission
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  // Handle file download
-  const handleFileDownload = (fileData: any) => {
-    try {
-      const link = document.createElement('a');
-      link.href = fileData.data;
-      link.download = fileData.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('File download failed:', error);
-      alert('File download failed');
     }
   };
 
@@ -433,8 +456,6 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
               <option value="python">Python</option>
               <option value="java">Java</option>
               <option value="cpp">C++</option>
-              <option value="html">HTML</option>
-              <option value="css">CSS</option>
             </select>
             <Button
               size="sm"
@@ -519,7 +540,7 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
             type="file"
             onChange={handleFileSelect}
             className="mt-2 w-full text-sm"
-            accept="image/*,.pdf,.doc,.docx,.txt,.js,.py,.java,.cpp,.html,.css"
+            accept="image/*,.pdf,.doc,.docx,.txt,.js,.py,.java,.cpp"
           />
         )}
       </div>
@@ -616,7 +637,7 @@ export function EnhancedChatInterface({ }: EnhancedChatInterfaceProps) {
                 '💘', '💝', '💖', '💗', '💓', '💞', '💕', '💟',
                 '❣️', '💔', '❤️', '🧡', '💛', '💚', '💙', '💜',
                 '🖤', '💯', '💢', '💥', '💫', '💦', '💨', '🕳️',
-                '💬', '🗨️', '🗯️', '💭', '💤', '💢', '💥', '💫'
+                '💬', '🗨️', '🗯️', '💭', '💤', '🌟', '✨', '⭐'
               ].map((emoji) => (
                 <button
                   key={emoji}

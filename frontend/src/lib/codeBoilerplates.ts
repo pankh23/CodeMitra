@@ -2,12 +2,9 @@ export interface LanguageBoilerplate {
   id: string;
   name: string;
   extension: string;
-  mimeType: string;
   code: string;
   description: string;
-  isCompiled: boolean;
-  executionTimeout: number; // in seconds
-  memoryLimit: number; // in MB
+  category: 'basic' | 'intermediate' | 'advanced';
 }
 
 export const LANGUAGE_BOILERPLATES: LanguageBoilerplate[] = [
@@ -15,189 +12,182 @@ export const LANGUAGE_BOILERPLATES: LanguageBoilerplate[] = [
     id: 'javascript',
     name: 'JavaScript',
     extension: 'js',
-    mimeType: 'text/javascript',
-    code: `// Welcome to JavaScript!
-// Write your code below
+    category: 'basic',
+    description: 'Basic JavaScript function with console output',
+    code: `// Welcome to CodeMitra JavaScript Editor!
+// This is a basic JavaScript template to get you started
 
-function greet(name) {
-  return \`Hello, \${name}!\`;
+function greetUser(name) {
+  return \`Hello, \${name}! Welcome to collaborative coding.\`;
 }
 
 // Example usage
-console.log(greet('World'));
+const userName = "Developer";
+const message = greetUser(userName);
+console.log(message);
 
-// Your code here
-function main() {
-  // Add your logic here
-  console.log('Code executed successfully!');
+// You can add more functions and logic here
+function calculateSum(a, b) {
+  return a + b;
 }
 
-main();`,
-    description: 'JavaScript runtime environment',
-    isCompiled: false,
-    executionTimeout: 10,
-    memoryLimit: 128
+console.log("Sum of 5 + 3 =", calculateSum(5, 3));
+
+// Try running this code to see the output!`
   },
   {
     id: 'python',
     name: 'Python',
     extension: 'py',
-    mimeType: 'text/x-python',
-    code: `# Welcome to Python!
-# Write your code below
+    category: 'basic',
+    description: 'Basic Python function with print output',
+    code: `# Welcome to CodeMitra Python Editor!
+# This is a basic Python template to get you started
 
-def greet(name):
-    return f"Hello, {name}!"
+def greet_user(name):
+    return f"Hello, {name}! Welcome to collaborative coding."
 
 # Example usage
-print(greet('World'))
+user_name = "Developer"
+message = greet_user(user_name)
+print(message)
 
-# Your code here
-def main():
-    # Add your logic here
-    print("Code executed successfully!")
+# You can add more functions and logic here
+def calculate_sum(a, b):
+    return a + b
 
-if __name__ == "__main__":
-    main()`,
-    description: 'Python interpreter',
-    isCompiled: false,
-    executionTimeout: 10,
-    memoryLimit: 256
+print("Sum of 5 + 3 =", calculate_sum(5, 3))
+
+# List comprehension example
+numbers = [1, 2, 3, 4, 5]
+squares = [x**2 for x in numbers]
+print("Squares:", squares)
+
+# Try running this code to see the output!`
   },
   {
     id: 'java',
     name: 'Java',
     extension: 'java',
-    mimeType: 'text/x-java-source',
-    code: `// Welcome to Java!
-// Write your code below
+    category: 'basic',
+    description: 'Basic Java class with main method',
+    code: `// Welcome to CodeMitra Java Editor!
+// This is a basic Java template to get you started
 
 public class Main {
     public static void main(String[] args) {
-        // Add your logic here
-        System.out.println("Code executed successfully!");
+        System.out.println("Hello, Developer! Welcome to collaborative coding.");
         
-        // Example method call
-        String result = greet("World");
-        System.out.println(result);
+        // Example method calls
+        String message = greetUser("Developer");
+        System.out.println(message);
+        
+        int result = calculateSum(5, 3);
+        System.out.println("Sum of 5 + 3 = " + result);
+        
+        // Array example
+        int[] numbers = {1, 2, 3, 4, 5};
+        System.out.println("Array elements:");
+        for (int num : numbers) {
+            System.out.print(num + " ");
+        }
+        System.out.println();
     }
     
-    public static String greet(String name) {
-        return "Hello, " + name + "!";
+    public static String greetUser(String name) {
+        return "Hello, " + name + "! Welcome to collaborative coding.";
     }
-}`,
-    description: 'Java with JVM compilation',
-    isCompiled: true,
-    executionTimeout: 20,
-    memoryLimit: 512
+    
+    public static int calculateSum(int a, int b) {
+        return a + b;
+    }
+}`
   },
   {
     id: 'cpp',
     name: 'C++',
     extension: 'cpp',
-    mimeType: 'text/x-c++src',
-    code: `// Welcome to C++!
-// Write your code below
+    category: 'basic',
+    description: 'Basic C++ program with main function',
+    code: `// Welcome to CodeMitra C++ Editor!
+// This is a basic C++ template to get you started
 
 #include <iostream>
+#include <vector>
 #include <string>
-
 using namespace std;
 
-string greet(string name) {
-    return "Hello, " + name + "!";
-}
+// Function declarations
+string greetUser(string name);
+int calculateSum(int a, int b);
+void printArray(vector<int>& arr);
 
 int main() {
-    // Add your logic here
-    cout << "Code executed successfully!" << endl;
+    cout << "Hello, Developer! Welcome to collaborative coding." << endl;
     
-    // Example function call
-    string result = greet("World");
-    cout << result << endl;
+    // Example method calls
+    string message = greetUser("Developer");
+    cout << message << endl;
     
-    return 0;
-}`,
-    description: 'C++ with GCC compilation',
-    isCompiled: true,
-    executionTimeout: 15,
-    memoryLimit: 256
-  },
-  {
-    id: 'c',
-    name: 'C',
-    extension: 'c',
-    mimeType: 'text/x-csrc',
-    code: `// Welcome to C!
-// Write your code below
-
-#include <stdio.h>
-#include <string.h>
-
-char* greet(char* name) {
-    static char result[100];
-    sprintf(result, "Hello, %s!", name);
-    return result;
-}
-
-int main() {
-    // Add your logic here
-    printf("Code executed successfully!\\n");
+    int result = calculateSum(5, 3);
+    cout << "Sum of 5 + 3 = " << result << endl;
     
-    // Example function call
-    char* result = greet("World");
-    printf("%s\\n", result);
+    // Vector example
+    vector<int> numbers = {1, 2, 3, 4, 5};
+    cout << "Vector elements: ";
+    printArray(numbers);
     
     return 0;
-}`,
-    description: 'C with GCC compilation',
-    isCompiled: true,
-    executionTimeout: 15,
-    memoryLimit: 256
-  },
-  {
-    id: 'php',
-    name: 'PHP',
-    extension: 'php',
-    mimeType: 'text/x-php',
-    code: `<?php
-// Welcome to PHP!
-// Write your code below
-
-function greet($name) {
-    return "Hello, " . $name . "!";
 }
 
-// Example usage
-echo greet('World') . PHP_EOL;
-
-// Your code here
-function main() {
-    // Add your logic here
-    echo "Code executed successfully!" . PHP_EOL;
+string greetUser(string name) {
+    return "Hello, " + name + "! Welcome to collaborative coding.";
 }
 
-main();
-?>`,
-    description: 'PHP interpreter',
-    isCompiled: false,
-    executionTimeout: 10,
-    memoryLimit: 128
+int calculateSum(int a, int b) {
+    return a + b;
+}
+
+void printArray(vector<int>& arr) {
+    for (int num : arr) {
+        cout << num << " ";
+    }
+    cout << endl;
+}`
   }
 ];
 
-export function getBoilerplate(languageId: string): LanguageBoilerplate | undefined {
-  return LANGUAGE_BOILERPLATES.find(lang => lang.id === languageId);
+/**
+ * Get boilerplate code for a specific language
+ */
+export function getBoilerplate(languageId: string): LanguageBoilerplate | null {
+  return LANGUAGE_BOILERPLATES.find(bp => bp.id === languageId) || null;
 }
 
-export function getSupportedLanguages(): LanguageBoilerplate[] {
+/**
+ * Get all available languages
+ */
+export function getAvailableLanguages(): LanguageBoilerplate[] {
   return LANGUAGE_BOILERPLATES;
 }
 
-export function getLanguageById(languageId: string): LanguageBoilerplate | undefined {
-  return LANGUAGE_BOILERPLATES.find(lang => lang.id === languageId);
+/**
+ * Get languages by category
+ */
+export function getLanguagesByCategory(category: 'basic' | 'intermediate' | 'advanced'): LanguageBoilerplate[] {
+  return LANGUAGE_BOILERPLATES.filter(bp => bp.category === category);
 }
 
-export function getDefaultLanguage(): LanguageBoilerplate {
-  return LANGUAGE_BOILERPLATES[0]; // JavaScript as default
+/**
+ * Get language by extension
+ */
+export function getLanguageByExtension(extension: string): LanguageBoilerplate | null {
+  return LANGUAGE_BOILERPLATES.find(bp => bp.extension === extension) || null;
+}
+
+/**
+ * Get supported language IDs (for backward compatibility)
+ */
+export function getSupportedLanguages(): string[] {
+  return LANGUAGE_BOILERPLATES.map(lang => lang.id);
 }

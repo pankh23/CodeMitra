@@ -86,6 +86,8 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
     const oldCode = lastCodeRef.current;
     if (oldCode === newCode) return;
     
+    let transformedOperations: any[] = [];
+    
     try {
       setIsSyncing(true);
       
@@ -93,7 +95,7 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
       const operations = ot.createOperation(oldCode, newCode, user.id, Date.now());
       
       // Transform operations against pending changes
-      let transformedOperations = operations;
+      transformedOperations = operations;
       for (const pendingOp of pendingChanges) {
         const result = ot.transform(operations[0], pendingOp);
         transformedOperations = result.transformed;
@@ -117,7 +119,9 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
     } catch (error) {
       console.error('Failed to sync code changes:', error);
       // Add to pending changes for retry
-      setPendingChanges(prev => [...prev, ...operations]);
+      if (transformedOperations.length > 0) {
+        setPendingChanges(prev => [...prev, ...transformedOperations]);
+      }
     } finally {
       setIsSyncing(false);
     }

@@ -50,6 +50,8 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 // Rate limiting - applied after CORS
+// TEMPORARILY DISABLED TO TEST LOGIN ISSUE
+/*
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -62,6 +64,7 @@ const limiter = rateLimit({
 
 // Other middleware
 app.use(limiter);
+*/
 app.use(helmet());
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));

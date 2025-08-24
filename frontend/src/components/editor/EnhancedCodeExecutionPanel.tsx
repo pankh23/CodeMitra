@@ -59,7 +59,7 @@ export function EnhancedCodeExecutionPanel({
   ];
 
   // Check if language requires input
-  const inputLanguages = new Set(['python', 'java', 'cpp', 'c', 'go', 'rust']);
+  const inputLanguages = new Set(['python', 'java', 'cpp']);
   const requiresInput = inputLanguages.has(language);
 
   const handleRunCode = useCallback(async () => {

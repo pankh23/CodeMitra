@@ -93,7 +93,7 @@ export function StructuredRightSidebar({
           
           {/* Video Content */}
           <div className="flex-1 overflow-hidden">
-            <EnhancedVideoCall roomId={roomId} />
+            <EnhancedVideoCall />
           </div>
         </div>
       </motion.div>

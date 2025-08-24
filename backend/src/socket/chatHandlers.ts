@@ -1,8 +1,9 @@
-import { Server } from 'socket.io';
-import { AuthenticatedSocket, isUserInRoom } from './index';
+import { AuthenticatedSocket, Server } from './types';
 import { prisma } from '../utils/prisma';
 
-export const setupChatHandlers = (io: Server, socket: AuthenticatedSocket) => {
+
+
+export const setupChatHandlers = (io: Server, socket: AuthenticatedSocket, isUserInRoom: (userId: string, roomId: string) => Promise<boolean>) => {
   // Send a chat message
   socket.on('chat:send-message', async (data: { roomId: string; content: string; type?: string }) => {
     try {

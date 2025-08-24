@@ -43,6 +43,7 @@ const worker = new Worker(
       });
       
       console.log(`Job ${job.id} completed successfully`);
+      console.log(`🔍 Worker result:`, JSON.stringify(result, null, 2));
       return result;
     } catch (error) {
       console.error(`Job ${job.id} failed:`, error);

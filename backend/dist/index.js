@@ -8,7 +8,6 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const morgan_1 = __importDefault(require("morgan"));
-const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const dotenv_1 = __importDefault(require("dotenv"));
@@ -27,35 +26,30 @@ const server = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(server, {
     cors: {
         origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-        methods: ['GET', 'POST'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
         credentials: true
     }
 });
 exports.io = io;
-const PORT = process.env.PORT || 8000;
-const limiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: 'Too many requests from this IP, please try again later.',
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-app.use(limiter);
-app.use((0, helmet_1.default)());
-app.use((0, cors_1.default)({
+const PORT = process.env.PORT || 5001;
+const corsOptions = {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept'],
     credentials: true,
-    optionsSuccessStatus: 200
-}));
+    optionsSuccessStatus: 200,
+    preflightContinue: false
+};
+app.use((0, cors_1.default)(corsOptions));
+app.options('*', (0, cors_1.default)(corsOptions));
+app.use((0, helmet_1.default)());
 app.use((0, morgan_1.default)('combined'));
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 app.get('/healthz', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
-app.options('*', (0, cors_1.default)());
 app.use('/api/auth', auth_1.authRoutes);
 app.use('/api/rooms', rooms_1.roomRoutes);
 app.use('/api/users', users_1.userRoutes);

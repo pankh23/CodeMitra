@@ -17,7 +17,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getSupportedLanguages, getBoilerplate } from '@/lib/codeBoilerplates';
+import { getAvailableLanguages, getBoilerplate } from '@/lib/codeBoilerplates';
 
 interface EditorToolbarProps {
   language: string;
@@ -35,7 +35,7 @@ interface EditorToolbarProps {
   hasUnsavedChanges: boolean;
 }
 
-const SUPPORTED_LANGUAGES = getSupportedLanguages().map(lang => ({
+const SUPPORTED_LANGUAGES = getAvailableLanguages().map(lang => ({
   value: lang.id,
   label: lang.name,
   icon: getLanguageIcon(lang.id),
@@ -45,17 +45,9 @@ const SUPPORTED_LANGUAGES = getSupportedLanguages().map(lang => ({
 function getLanguageIcon(languageId: string): string {
   const icons: { [key: string]: string } = {
     javascript: '⚡',
-    typescript: '🔷',
     python: '🐍',
     java: '☕',
-    cpp: '⚙️',
-    c: '🔧',
-    go: '🚀',
-    rust: '🦀',
-    php: '🐘',
-    html: '🌐',
-    css: '🎨',
-    sql: '🗄️'
+    cpp: '⚙️'
   };
   return icons[languageId] || '📝';
 }

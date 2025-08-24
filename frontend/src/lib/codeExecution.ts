@@ -1,3 +1,5 @@
+import { api } from './auth';
+
 export interface CodeExecutionRequest {
   code: string;
   language: string;
@@ -57,37 +59,18 @@ export class CodeExecutionService {
       };
     }
 
-    // Create abort controller for this execution
-    const abortController = new AbortController();
+    // Create execution tracking
     const executionId = `${roomId}-${userId}-${Date.now()}`;
-    this.executionQueue.set(executionId, abortController);
 
     try {
-      // Call backend execution service
-      const response = await fetch('/api/code/execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          code: code.trim(),
-          language,
-          input: input || '',
-          roomId,
-          userId
-        }),
-        signal: abortController.signal
+      // Call backend execution service using configured axios instance
+      const result = await api.post('/api/code/execute', {
+        code: code.trim(),
+        language,
+        input: input || '',
+        roomId
+        // Note: userId is extracted from auth token on backend
       });
-
-      if (!response.ok) {
-        throw new Error(`Execution failed: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      // Clean up execution queue
-      this.executionQueue.delete(executionId);
 
       return {
         success: result.success,
@@ -103,21 +86,7 @@ export class CodeExecutionService {
       };
 
     } catch (error) {
-      // Clean up execution queue
-      this.executionQueue.delete(executionId);
-
       if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          return {
-            success: false,
-            error: 'Code execution was cancelled.',
-            status: 'system_error',
-            timestamp: new Date(),
-            language,
-            codeSize: code.length
-          };
-        }
-        
         return {
           success: false,
           error: error.message,
