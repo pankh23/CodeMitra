@@ -77,11 +77,10 @@ export const getWorkerConfig = (): WorkerConfig => {
 // File system utilities
 export const createTempDirectory = async (): Promise<string> => {
   const config = getWorkerConfig();
-  const tempDir = tmp.tmpNameSync({ 
-    dir: config.execution.tempDir,
-    prefix: 'codemitra-',
-    postfix: '-' + uuidv4()
-  });
+  
+  // Use /tmp/codemitra-shared for Docker-in-Docker compatibility
+  const baseDir = '/tmp/codemitra-shared';
+  const tempDir = path.join(baseDir, `codemitra-${uuidv4()}`);
   
   await fs.ensureDir(tempDir);
   return tempDir;

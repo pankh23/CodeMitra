@@ -115,15 +115,48 @@ export class DockerExecutor {
         memoryLimit
       );
 
+      // Determine status with proper syntax error detection for interpreted languages
+      let status: 'completed' | 'failed' | 'timeout' | 'memory_limit_exceeded' | 'compilation_error';
+      if (executionResult.timedOut) {
+        status = 'timeout';
+      } else if (executionResult.exitCode === 0) {
+        status = 'completed';
+      } else {
+        // Check for syntax errors in interpreted languages
+        const stderr = executionResult.stderr.toLowerCase();
+        let isSyntaxError = false;
+        
+        if (language.id === 'python') {
+          // Python: Only syntax errors, not runtime errors
+          isSyntaxError = stderr.includes('syntaxerror') || 
+                         stderr.includes('syntax error') ||
+                         stderr.includes('invalid syntax') ||
+                         stderr.includes('parsing error');
+          // If it has traceback with runtime errors (IndexError, NameError, etc.), it's NOT a syntax error
+          const runtimeErrors = ['indexerror', 'nameerror', 'typeerror', 'valueerror', 'keyerror', 'attributeerror'];
+          if (stderr.includes('traceback') && runtimeErrors.some(err => stderr.includes(err))) {
+            isSyntaxError = false; // This is a runtime error, not syntax
+          }
+        } else if (language.id === 'javascript') {
+          // JavaScript: Syntax errors
+          isSyntaxError = stderr.includes('syntaxerror') || 
+                         stderr.includes('syntax error') ||
+                         stderr.includes('unexpected token') ||
+                         stderr.includes('parsing error');
+        }
+        
+        status = isSyntaxError ? 'compilation_error' : 'failed';
+      }
+
       // Build result
       const result: ExecutionResult = {
         executionId: request.executionId,
-        status: executionResult.timedOut ? 'timeout' : 
-                executionResult.exitCode === 0 ? 'completed' : 'failed',
+        status,
         stdout: executionResult.stdout,
         stderr: executionResult.stderr,
         output: executionResult.stdout,
-        error: executionResult.stderr || undefined,
+        // Only set error field for actual failures, not successful executions with stderr
+        error: (status === 'completed') ? undefined : (executionResult.stderr || undefined),
         exitCode: executionResult.exitCode,
         executionTime: Date.now() - startTime,
         memoryUsed: executionResult.memoryUsed,
@@ -186,10 +219,18 @@ export class DockerExecutor {
 
       const result = await this.executeInDocker(options);
 
+      // Clean output to prevent database encoding issues
+      const cleanOutput = (text: string) => {
+        return text.replace(/\0/g, '')
+                   .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+                   .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+                   .trim();
+      };
+
       return {
         success: result.exitCode === 0,
-        output: result.stdout,
-        error: result.stderr || undefined,
+        output: cleanOutput(result.stdout),
+        error: result.stderr ? cleanOutput(result.stderr) : undefined,
         compilationTime: Date.now() - startTime
       };
     } catch (error) {
@@ -223,7 +264,7 @@ export class DockerExecutor {
       timeout,
       memoryLimit,
       networkMode: 'none',
-      readOnly: true,
+      readOnly: false, // Allow writing for compiled languages that need executable files
       volumes: {
         [workDir]: '/workspace'
       }
@@ -282,8 +323,9 @@ export class DockerExecutor {
 
       // Add volumes if specified
       if (options.volumes) {
+        const volumeMode = options.readOnly ? 'ro' : 'rw';
         containerOptions.HostConfig!.Binds = Object.entries(options.volumes).map(
-          ([host, container]) => `${host}:${container}:ro`
+          ([host, container]) => `${host}:${container}:${volumeMode}`
         );
       }
 
@@ -358,9 +400,18 @@ export class DockerExecutor {
 
       const executionTime = Date.now() - startTime;
 
+      // Remove null bytes and other problematic characters that cause database encoding issues
+      const cleanOutput = (text: string) => {
+        // Remove null bytes, control characters, and other problematic characters
+        return text.replace(/\0/g, '')
+                   .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+                   .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+                   .trim();
+      };
+
       return {
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
+        stdout: cleanOutput(stdout),
+        stderr: cleanOutput(stderr),
         exitCode,
         executionTime,
         memoryUsed,

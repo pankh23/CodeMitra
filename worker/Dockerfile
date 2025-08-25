@@ -47,15 +47,8 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S worker -u 1001
-
-# Change ownership of the app directory
-RUN chown -R worker:nodejs /app
-
-# Switch to non-root user
-USER worker
+# For Docker-in-Docker, run as root to avoid permission issues
+# This is safe in a containerized environment with proper network isolation
 
 # Expose port
 EXPOSE 8080

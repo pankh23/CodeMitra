@@ -7,7 +7,6 @@ exports.sanitizeError = exports.isMemoryError = exports.isTimeoutError = exports
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
 const uuid_1 = require("uuid");
-const tmp_1 = __importDefault(require("tmp"));
 const winston_1 = __importDefault(require("winston"));
 exports.logger = winston_1.default.createLogger({
     level: process.env.LOG_LEVEL || 'info',
@@ -68,11 +67,8 @@ const getWorkerConfig = () => {
 exports.getWorkerConfig = getWorkerConfig;
 const createTempDirectory = async () => {
     const config = (0, exports.getWorkerConfig)();
-    const tempDir = tmp_1.default.tmpNameSync({
-        dir: config.execution.tempDir,
-        prefix: 'codemitra-',
-        postfix: '-' + (0, uuid_1.v4)()
-    });
+    const baseDir = '/tmp/codemitra-shared';
+    const tempDir = path_1.default.join(baseDir, `codemitra-${(0, uuid_1.v4)()}`);
     await fs_extra_1.default.ensureDir(tempDir);
     return tempDir;
 };
@@ -138,7 +134,6 @@ const scanCodeForSecurity = (code, language) => {
     });
     switch (language) {
         case 'javascript':
-        case 'typescript':
             checkJavaScriptSecurity(code, issues);
             break;
         case 'python':
@@ -148,20 +143,7 @@ const scanCodeForSecurity = (code, language) => {
             checkJavaSecurity(code, issues);
             break;
         case 'cpp':
-        case 'c':
             checkCSecurity(code, issues);
-            break;
-        case 'go':
-            checkGoSecurity(code, issues);
-            break;
-        case 'rust':
-            checkRustSecurity(code, issues);
-            break;
-        case 'php':
-            checkPHPSecurity(code, issues);
-            break;
-        case 'ruby':
-            checkRubySecurity(code, issues);
             break;
     }
     const criticalIssues = issues.filter(issue => issue.severity === 'critical');
@@ -285,132 +267,6 @@ const checkCSecurity = (code, issues) => {
                 type: 'malicious_import',
                 severity: 'high',
                 description: `Dangerous C/C++ pattern detected: ${matches[0]}`
-            });
-        }
-    });
-};
-const checkGoSecurity = (code, issues) => {
-    const dangerousPatterns = [
-        /import\s+\"os\"/,
-        /import\s+\"os\/exec\"/,
-        /import\s+\"net\"/,
-        /import\s+\"net\/http\"/,
-        /import\s+\"syscall\"/,
-        /import\s+\"unsafe\"/,
-        /os\.Exit/,
-        /os\.Getenv/,
-        /os\.Setenv/,
-        /exec\.Command/,
-        /syscall\./,
-        /unsafe\./
-    ];
-    dangerousPatterns.forEach(pattern => {
-        const matches = code.match(pattern);
-        if (matches) {
-            issues.push({
-                type: 'malicious_import',
-                severity: 'critical',
-                description: `Dangerous Go pattern detected: ${matches[0]}`
-            });
-        }
-    });
-};
-const checkRustSecurity = (code, issues) => {
-    const dangerousPatterns = [
-        /use\s+std::process/,
-        /use\s+std::net/,
-        /use\s+std::fs/,
-        /use\s+std::os/,
-        /use\s+std::env/,
-        /use\s+std::ffi/,
-        /use\s+std::ptr/,
-        /unsafe\s*\{/,
-        /std::process::/,
-        /std::net::/,
-        /std::fs::/,
-        /std::os::/
-    ];
-    dangerousPatterns.forEach(pattern => {
-        const matches = code.match(pattern);
-        if (matches) {
-            issues.push({
-                type: 'malicious_import',
-                severity: 'critical',
-                description: `Dangerous Rust pattern detected: ${matches[0]}`
-            });
-        }
-    });
-};
-const checkPHPSecurity = (code, issues) => {
-    const dangerousPatterns = [
-        /exec\s*\(/,
-        /system\s*\(/,
-        /shell_exec\s*\(/,
-        /passthru\s*\(/,
-        /proc_open\s*\(/,
-        /popen\s*\(/,
-        /file_get_contents\s*\(/,
-        /fopen\s*\(/,
-        /fwrite\s*\(/,
-        /file\s*\(/,
-        /glob\s*\(/,
-        /opendir\s*\(/,
-        /readdir\s*\(/,
-        /scandir\s*\(/,
-        /fsockopen\s*\(/,
-        /socket_create\s*\(/,
-        /curl_exec\s*\(/,
-        /eval\s*\(/,
-        /assert\s*\(/,
-        /create_function\s*\(/
-    ];
-    dangerousPatterns.forEach(pattern => {
-        const matches = code.match(pattern);
-        if (matches) {
-            issues.push({
-                type: 'malicious_import',
-                severity: 'critical',
-                description: `Dangerous PHP pattern detected: ${matches[0]}`
-            });
-        }
-    });
-};
-const checkRubySecurity = (code, issues) => {
-    const dangerousPatterns = [
-        /require\s+['"]net['"]/,
-        /require\s+['"]socket['"]/,
-        /require\s+['"]open-uri['"]/,
-        /require\s+['"]net\/http['"]/,
-        /require\s+['"]fileutils['"]/,
-        /require\s+['"]pathname['"]/,
-        /require\s+['"]tmpdir['"]/,
-        /require\s+['"]tempfile['"]/,
-        /system\s*\(/,
-        /exec\s*\(/,
-        /spawn\s*\(/,
-        /fork\s*\(/,
-        /eval\s*\(/,
-        /instance_eval\s*\(/,
-        /class_eval\s*\(/,
-        /open\s*\(/,
-        /popen\s*\(/,
-        /File\.open/,
-        /File\.read/,
-        /File\.write/,
-        /IO\.popen/,
-        /Process\.spawn/,
-        /Process\.fork/,
-        /Kernel\.eval/,
-        /Kernel\.exec/,
-        /Kernel\.system/
-    ];
-    dangerousPatterns.forEach(pattern => {
-        const matches = code.match(pattern);
-        if (matches) {
-            issues.push({
-                type: 'malicious_import',
-                severity: 'critical',
-                description: `Dangerous Ruby pattern detected: ${matches[0]}`
             });
         }
     });

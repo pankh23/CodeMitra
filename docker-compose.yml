@@ -65,10 +65,12 @@ services:
       - WORKER_TIMEOUT=${WORKER_TIMEOUT}
       - WORKER_MEMORY_LIMIT=${WORKER_MEMORY_LIMIT}
       - WORKER_PORT=8080
+      - TEMP_DIR=/tmp/codemitra-shared
     depends_on:
       - redis
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/codemitra-shared:/tmp/codemitra-shared
     networks:
       - codemitra_network
     restart: unless-stopped

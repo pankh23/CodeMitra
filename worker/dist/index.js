@@ -37,7 +37,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const bullmq_1 = require("bullmq");
-const simpleDockerExecutor_1 = require("./executors/simpleDockerExecutor");
+const ioredis_1 = __importDefault(require("ioredis"));
+const dockerExecutor_1 = require("./executors/dockerExecutor");
 const dotenv_1 = __importDefault(require("dotenv"));
 const http = __importStar(require("http"));
 dotenv_1.default.config();
@@ -50,7 +51,15 @@ const redisConfig = {
     maxRetriesPerRequest: null,
 };
 console.log('Redis Config:', { host: redisConfig.host, port: redisConfig.port });
-const dockerExecutor = new simpleDockerExecutor_1.DockerExecutor();
+const dockerExecutor = new dockerExecutor_1.DockerExecutor();
+const resultRedis = new ioredis_1.default(REDIS_URL, {
+    maxRetriesPerRequest: null,
+});
+resultRedis.ping().then(() => {
+    console.log('✅ Redis connection successful for result storage');
+}).catch(err => {
+    console.error('❌ Redis connection failed for result storage:', err);
+});
 const worker = new bullmq_1.Worker('code-execution', async (job) => {
     console.log(`Processing job ${job.id}:`, job.data);
     try {
@@ -61,9 +70,24 @@ const worker = new bullmq_1.Worker('code-execution', async (job) => {
             code,
             input,
             timeout,
-            memoryLimit
+            memoryLimit,
+            roomId: '',
+            userId: ''
         });
+        console.log(`🎯 EXECUTOR COMPLETED - Job ${job.id} finished execution`);
         console.log(`Job ${job.id} completed successfully`);
+        console.log(`🔍 Worker result:`, JSON.stringify(result, null, 2));
+        console.log(`📝 About to store result in Redis...`);
+        try {
+            const resultKey = `execution-result:${result.executionId}`;
+            console.log(`🔑 Using Redis key: ${resultKey}`);
+            await resultRedis.set(resultKey, JSON.stringify(result), 'EX', 300);
+            console.log(`✅ Stored result in Redis with key: ${resultKey}`);
+        }
+        catch (redisError) {
+            console.error(`❌ Failed to store result in Redis:`, redisError);
+        }
+        console.log(`📤 About to return result...`);
         return result;
     }
     catch (error) {

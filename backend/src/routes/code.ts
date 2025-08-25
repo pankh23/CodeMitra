@@ -3,7 +3,7 @@ import { prisma } from '../utils/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { validate, codeExecutionSchema } from '../utils/validation';
-import { Queue } from 'bullmq';
+import { Queue, QueueEvents } from 'bullmq';
 import { redisClient } from '../utils/redis';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,6 +21,11 @@ const codeExecutionQueue = new Queue('code-execution', {
       delay: 2000,
     },
   },
+});
+
+// Create QueueEvents for listening to job completion
+const queueEvents = new QueueEvents('code-execution', {
+  connection: redisClient,
 });
 
 interface CodeExecutionRequest {
@@ -41,45 +46,41 @@ interface CodeExecutionResult {
   status: 'success' | 'compilation_error' | 'runtime_error' | 'timeout' | 'memory_limit' | 'system_error';
 }
 
-// Supported languages and their configurations
+// Supported languages and their configurations (matching worker configurations)
 const LANGUAGE_CONFIGS = {
   javascript: {
     extension: 'js',
     dockerImage: 'node:18-alpine',
-    command: 'node',
-    args: ['-e'],
-    timeout: 10000,
-    memoryLimit: 128 * 1024 * 1024, // 128MB
+    runCommand: 'node main.js',
+    timeout: 30000,
+    memoryLimit: '256m',
     needsCompilation: false
   },
   python: {
     extension: 'py',
     dockerImage: 'python:3.11-alpine',
-    command: 'python3',
-    args: ['-c'],
-    timeout: 10000,
-    memoryLimit: 256 * 1024 * 1024, // 256MB
+    runCommand: 'python main.py',
+    timeout: 30000,
+    memoryLimit: '256m',
     needsCompilation: false
   },
   java: {
     extension: 'java',
-    dockerImage: 'openjdk:17-alpine',
-    command: 'java',
-    args: ['-cp', '.', 'Main'],
-    timeout: 20000,
-    memoryLimit: 512 * 1024 * 1024, // 512MB
-    needsCompilation: true,
-    compileCommand: 'javac'
+    dockerImage: 'eclipse-temurin:17-jdk',
+    compileCommand: 'javac Main.java',
+    runCommand: 'java Main',
+    timeout: 30000,
+    memoryLimit: '512m',
+    needsCompilation: true
   },
   cpp: {
     extension: 'cpp',
-    dockerImage: 'gcc:alpine',
-    command: './a.out',
-    args: [],
-    timeout: 15000,
-    memoryLimit: 256 * 1024 * 1024, // 256MB
-    needsCompilation: true,
-    compileCommand: 'g++'
+    dockerImage: 'gcc:11-alpine',
+    compileCommand: 'g++ -std=c++17 -O2 -Wall -Wextra -o main main.cpp',
+    runCommand: './main',
+    timeout: 45000,
+    memoryLimit: '256m',
+    needsCompilation: true
   }
 };
 
@@ -96,7 +97,8 @@ async function executeCodeWithQueue(code: string, language: string, input: strin
       language,
       code,
       input,
-      config,
+      timeout: config.timeout,
+      memoryLimit: config.memoryLimit,
       timestamp: Date.now()
     }, {
       removeOnComplete: false, // Keep completed jobs so we can get results
@@ -111,60 +113,78 @@ async function executeCodeWithQueue(code: string, language: string, input: strin
     try {
       console.log(`Waiting for job ${job.id} to complete...`);
       
-      // Poll for job completion with timeout
-      let attempts = 0;
-      const maxAttempts = 60; // 30 seconds with 500ms intervals
-      
-      while (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+      // Simple polling approach with proper result retrieval
+      {
+        let attempts = 0;
+        const maxAttempts = 60; // 30 seconds with 500ms intervals
         
-        const jobState = await job.getState();
-        console.log(`Job ${job.id} state: ${jobState}`);
-        
-        if (jobState === 'completed') {
-          const result = job.returnvalue;
-          console.log(`Job ${job.id} completed successfully with result:`, JSON.stringify(result, null, 2));
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
           
-          return {
-            success: result?.success !== false,
-            output: result?.output || result?.stdout || 'Code executed successfully',
-            error: result?.error || result?.stderr || '',
-            executionTime: result?.executionTime || 0,
-            memoryUsed: result?.memoryUsage || 0,
-            compilationTime: result?.compilationTime || 0,
-            status: (result?.success !== false ? 'success' : 'runtime_error') as any
-          };
+          const jobState = await job.getState();
+          console.log(`Job ${job.id} state: ${jobState}`);
+          
+          if (jobState === 'completed') {
+            // Get result from Redis using executionId
+            const resultKey = `execution-result:${executionId}`;
+            const resultStr = await redisClient.get(resultKey);
+            let result = null;
+            
+            if (resultStr) {
+              try {
+                result = JSON.parse(resultStr);
+                console.log(`Job ${job.id} completed successfully with result from Redis:`, JSON.stringify(result, null, 2));
+              } catch (parseError) {
+                console.error(`Failed to parse result from Redis:`, parseError);
+              }
+            } else {
+              console.log(`No result found in Redis for key: ${resultKey}, falling back to job.returnvalue`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              result = job.returnvalue;
+              console.log(`Job ${job.id} completed with fallback result:`, JSON.stringify(result, null, 2));
+            }
+            
+            return {
+              success: result?.status === 'completed',
+              output: result?.output || result?.stdout || '',
+              error: result?.error || result?.stderr || '',
+              executionTime: result?.executionTime || 0,
+              memoryUsed: result?.memoryUsage || result?.memoryUsed || 0,
+              compilationTime: result?.compilationTime || 0,
+              status: result?.status || 'failed'
+            };
+          }
+        
+          if (jobState === 'failed') {
+            const failedReason = job.failedReason;
+            console.error(`Job ${job.id} failed:`, failedReason);
+            
+            return {
+              success: false,
+              output: '',
+              error: failedReason || 'Code execution failed',
+              executionTime: 0,
+              memoryUsed: 0,
+              compilationTime: 0,
+              status: 'runtime_error' as any
+            };
+          }
+          
+          attempts++;
         }
         
-        if (jobState === 'failed') {
-          const failedReason = job.failedReason;
-          console.error(`Job ${job.id} failed:`, failedReason);
-          
-          return {
-            success: false,
-            output: '',
-            error: failedReason || 'Code execution failed',
-            executionTime: 0,
-            memoryUsed: 0,
-            compilationTime: 0,
-            status: 'runtime_error' as any
-          };
-        }
-        
-        attempts++;
+        // Timeout reached
+        console.error(`Job ${job.id} timed out after ${maxAttempts * 500}ms`);
+        return {
+          success: false,
+          output: '',
+          error: 'Code execution timed out',
+          executionTime: 0,
+          memoryUsed: 0,
+          compilationTime: 0,
+          status: 'timeout' as any
+        };
       }
-      
-      // Timeout reached
-      console.error(`Job ${job.id} timed out after ${maxAttempts * 500}ms`);
-      return {
-        success: false,
-        output: '',
-        error: 'Code execution timed out',
-        executionTime: 0,
-        memoryUsed: 0,
-        compilationTime: 0,
-        status: 'timeout' as any
-      };
       
     } catch (waitError: any) {
       console.error(`Job ${job.id} wait failed:`, waitError);
