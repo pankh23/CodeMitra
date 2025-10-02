@@ -32,8 +32,19 @@ RUN npm run build && npx tsc-alias -p tsconfig.json
 # Production stage
 FROM node:18-alpine AS runner
 
-# Install curl for health checks and OpenSSL for Prisma
-RUN apk add --no-cache curl openssl
+# Install curl for health checks, OpenSSL for Prisma, and all language runtimes
+RUN apk add --no-cache \
+    curl \
+    openssl \
+    python3 \
+    py3-pip \
+    openjdk17-jdk \
+    gcc \
+    g++ \
+    make \
+    bash \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/bin/pip
 
 # Set working directory
 WORKDIR /app
@@ -63,11 +74,11 @@ RUN chown -R backend:nodejs /app
 USER backend
 
 # Expose port
-EXPOSE 5000
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/healthz || exit 1
+  CMD curl -f http://localhost:8000/healthz || exit 1
 
 # Start the application
 CMD ["npm", "start"]

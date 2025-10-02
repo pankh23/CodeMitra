@@ -177,16 +177,12 @@ exports.codeExecutionSchema = joi_1.default.object({
         'any.only': 'Unsupported programming language',
         'any.required': 'Language is required'
     }),
-    input: joi_1.default.string().optional().max(1000).messages({
+    input: joi_1.default.string().allow('').optional().max(1000).messages({
         'string.max': 'Input too long (max 1,000 characters)'
     }),
     roomId: joi_1.default.string().required().uuid().messages({
         'string.guid': 'Invalid room ID format',
         'any.required': 'Room ID is required'
-    }),
-    userId: joi_1.default.string().required().uuid().messages({
-        'string.guid': 'Invalid user ID format',
-        'any.required': 'User ID is required'
     })
 });
 //# sourceMappingURL=validation.js.map

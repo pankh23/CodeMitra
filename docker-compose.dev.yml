@@ -68,8 +68,6 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./worker:/app
-      - /app/node_modules
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - codemitra_network

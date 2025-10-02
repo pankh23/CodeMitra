@@ -5,32 +5,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.io = exports.app = void 0;
 const express_1 = __importDefault(require("express"));
+const http_1 = require("http");
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const morgan_1 = __importDefault(require("morgan"));
-const http_1 = require("http");
-const socket_io_1 = require("socket.io");
 const dotenv_1 = __importDefault(require("dotenv"));
 const auth_1 = require("./routes/auth");
-const rooms_1 = require("./routes/rooms");
 const users_1 = require("./routes/users");
+const rooms_1 = require("./routes/rooms");
 const code_1 = require("./routes/code");
 const errorHandler_1 = require("./middleware/errorHandler");
 const socket_1 = require("./socket");
 const prisma_1 = require("./utils/prisma");
-const redis_1 = require("./utils/redis");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
 const server = (0, http_1.createServer)(app);
-const io = new socket_io_1.Server(server, {
-    cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-        credentials: true
-    }
-});
+const io = (0, socket_1.setupSocketIO)(server);
 exports.io = io;
 const PORT = process.env.PORT || 5001;
 const corsOptions = {
@@ -51,27 +42,16 @@ app.get('/healthz', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 app.use('/api/auth', auth_1.authRoutes);
-app.use('/api/rooms', rooms_1.roomRoutes);
 app.use('/api/users', users_1.userRoutes);
+app.use('/api/rooms', rooms_1.roomRoutes);
 app.use('/api/code', code_1.codeRoutes);
-async function setupSocketIO() {
-    try {
-        (0, socket_1.setupSocketHandlers)(io);
-        console.log('Socket.IO setup completed');
-    }
-    catch (error) {
-        console.error('Failed to setup Socket.IO:', error);
-        process.exit(1);
-    }
-}
 app.use(errorHandler_1.errorHandler);
 async function startServer() {
     try {
-        console.log('Connected to Redis');
-        await setupSocketIO();
         server.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV}`);
+            console.log(`WebSocket server initialized`);
         });
     }
     catch (error) {
@@ -81,7 +61,6 @@ async function startServer() {
 }
 process.on('SIGINT', async () => {
     console.log('Shutting down server...');
-    await redis_1.redisClient.disconnect();
     await prisma_1.prisma.$disconnect();
     server.close(() => {
         console.log('Server closed');

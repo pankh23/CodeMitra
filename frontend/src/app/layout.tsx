@@ -9,9 +9,9 @@ import { ExtensionFix } from '@/components/ui/ExtensionFix';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'CodeMitra - Real-time Collaborative Compiler',
-  description: 'A real-time collaborative compiler with video calls, chat, and secure rooms',
-  keywords: ['code', 'compiler', 'collaboration', 'real-time', 'programming'],
+  title: 'CodeMitra - Real-time Collaborative Coding Platform',
+  description: 'A real-time collaborative coding platform with secure rooms and live code execution',
+  keywords: ['code', 'collaboration', 'real-time', 'programming', 'coding', 'editor'],
   authors: [{ name: 'CodeMitra Team' }],
   creator: 'CodeMitra Team',
   publisher: 'CodeMitra',
@@ -24,21 +24,21 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'CodeMitra',
-    title: 'CodeMitra - Real-time Collaborative Compiler',
-    description: 'A real-time collaborative compiler with video calls, chat, and secure rooms',
+    title: 'CodeMitra - Real-time Collaborative Coding Platform',
+    description: 'A real-time collaborative coding platform with secure rooms and live code execution',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'CodeMitra - Real-time Collaborative Compiler',
+        alt: 'CodeMitra - Real-time Collaborative Coding Platform',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'CodeMitra - Real-time Collaborative Compiler',
-    description: 'A real-time collaborative compiler with video calls, chat, and secure rooms',
+    title: 'CodeMitra - Real-time Collaborative Coding Platform',
+    description: 'A real-time collaborative coding platform with secure rooms and live code execution',
     images: ['/og-image.png'],
   },
   robots: {
