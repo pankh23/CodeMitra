@@ -111,6 +111,8 @@ export const setupSocketIO = (server: any) => {
         const { roomId } = data;
         const userId = socket.data.user.id;
 
+        console.log(`[ROOM:JOIN] User ${socket.data.user.name} (${userId}) attempting to join room ${roomId}`);
+
         // Verify user is participant
         const participant = await prisma.roomParticipant.findUnique({
           where: { 
@@ -119,84 +121,93 @@ export const setupSocketIO = (server: any) => {
         });
 
         if (!participant) {
+          console.log(`[ROOM:JOIN] User ${userId} not authorized for room ${roomId}`);
           socket.emit('error', { message: 'Not authorized to join room' });
           return;
         }
 
-        // Update participant status to active
-        await prisma.roomParticipant.update({
-          where: { id: participant.id },
-          data: { 
-            status: 'active',
-            lastActivity: new Date()
+        // Use transaction to ensure atomicity
+        const result = await prisma.$transaction(async (tx) => {
+          // Update participant status to active
+          await tx.roomParticipant.update({
+            where: { id: participant.id },
+            data: { 
+              status: 'active',
+              lastActivity: new Date()
+            }
+          });
+
+          // Get current room state with fresh participant count
+          const room = await tx.room.findUnique({
+            where: { id: roomId },
+            include: {
+              participants: {
+                where: { status: 'active' },
+                include: {
+                  user: {
+                    select: { id: true, name: true, avatar: true }
+                  }
+                }
+              }
+            }
+          });
+
+          if (!room) {
+            throw new Error('Room not found');
           }
+
+          return room;
         });
 
         socket.join(roomId);
         
-        // Get current room state
-        const room = await prisma.room.findUnique({
-          where: { id: roomId },
-          include: {
-            participants: {
-              where: { status: 'active' },
-              include: {
-                user: {
-                  select: { id: true, name: true, avatar: true }
-                }
-              }
-            }
-          }
-        });
+        const room = result;
+        const participantCount = room.participants.length;
+        const participantList = room.participants.map(p => ({
+          id: p.user.id,
+          name: p.user.name,
+          avatar: p.user.avatar,
+          cursorLine: p.cursorLine,
+          cursorColumn: p.cursorColumn,
+          status: p.status
+        }));
 
-        if (!room) {
-          socket.emit('error', { message: 'Room not found' });
-          return;
-        }
+        console.log(`[ROOM:JOIN] Room ${roomId} now has ${participantCount} active participants`);
 
-        // Send room state to the joining user
+        // Send room state to the joining user with authoritative count
         socket.emit('room:state', {
           roomId,
           code: room.code,
           language: room.language,
           input: room.input,
           output: room.output,
-          participants: room.participants.map(p => ({
-            id: p.user.id,
-            name: p.user.name,
-            avatar: p.user.avatar,
-            cursorLine: p.cursorLine,
-            cursorColumn: p.cursorColumn,
-            status: p.status
-          }))
+          participants: participantList,
+          participantCount
         });
 
-        // Notify others in the room
-        socket.to(roomId).emit('user:joined', {
+        // Broadcast to ALL users in room (including the joining user) with authoritative count
+        io.to(roomId).emit('user:count:update', {
+          roomId,
+          count: participantCount,
+          participants: participantList,
+          event: 'user_joined',
           user: {
             id: socket.data.user.id,
             name: socket.data.user.name,
             avatar: socket.data.user.avatar
-          },
-          count: room.participants.length
+          }
         });
 
-        // Also broadcast updated participant list to all users in room
-        socket.to(roomId).emit('room:users', {
+        // Send acknowledgment to joining user
+        socket.emit('room:joined', {
           roomId,
-          users: room.participants.map(p => ({
-            id: p.user.id,
-            name: p.user.name,
-            avatar: p.user.avatar,
-            cursorLine: p.cursorLine,
-            cursorColumn: p.cursorColumn,
-            status: p.status
-          }))
+          participantCount,
+          participants: participantList
         });
 
-        console.log(`User ${socket.data.user.name} joined room ${roomId}`);
+        console.log(`[ROOM:JOIN] User ${socket.data.user.name} successfully joined room ${roomId} (${participantCount} total)`);
       } catch (error) {
-        console.error('Room join error:', error);
+        console.error('[ROOM:JOIN] Error:', error);
         socket.emit('error', { message: 'Failed to join room' });
       }
     });
@@ -207,37 +218,73 @@ export const setupSocketIO = (server: any) => {
         const { roomId } = data;
         const userId = socket.data.user.id;
         
-        // Update participant status to disconnected
-        await prisma.roomParticipant.updateMany({
-          where: { 
-            roomId, 
-            userId,
-            status: 'active'
-          },
-          data: { 
-            status: 'disconnected',
-            lastActivity: new Date()
-          }
+        console.log(`[ROOM:LEAVE] User ${socket.data.user.name} (${userId}) leaving room ${roomId}`);
+
+        // Use transaction to ensure atomicity
+        const result = await prisma.$transaction(async (tx) => {
+          // Update participant status to disconnected
+          await tx.roomParticipant.updateMany({
+            where: { 
+              roomId, 
+              userId,
+              status: 'active'
+            },
+            data: { 
+              status: 'disconnected',
+              lastActivity: new Date()
+            }
+          });
+
+          // Get updated participant count and list
+          const room = await tx.room.findUnique({
+            where: { id: roomId },
+            include: {
+              participants: {
+                where: { status: 'active' },
+                include: {
+                  user: {
+                    select: { id: true, name: true, avatar: true }
+                  }
+                }
+              }
+            }
+          });
+
+          return room;
         });
 
         socket.leave(roomId);
         
-        // Get updated participant count
-        const count = await getParticipantCount(roomId);
-        
-        // Notify others in the room
-        socket.to(roomId).emit('user:left', {
-          user: {
-            id: socket.data.user.id,
-            name: socket.data.user.name,
-            avatar: socket.data.user.avatar
-          },
-          count
-        });
+        if (result) {
+          const participantCount = result.participants.length;
+          const participantList = result.participants.map(p => ({
+            id: p.user.id,
+            name: p.user.name,
+            avatar: p.user.avatar,
+            cursorLine: p.cursorLine,
+            cursorColumn: p.cursorColumn,
+            status: p.status
+          }));
 
-        console.log(`User ${socket.data.user.name} left room ${roomId}`);
+          console.log(`[ROOM:LEAVE] Room ${roomId} now has ${participantCount} active participants`);
+
+          // Broadcast to ALL users in room (including the leaving user) with authoritative count
+          io.to(roomId).emit('user:count:update', {
+            roomId,
+            count: participantCount,
+            participants: participantList,
+            event: 'user_left',
+            user: {
+              id: socket.data.user.id,
+              name: socket.data.user.name,
+              avatar: socket.data.user.avatar
+            }
+          });
+        }
+
+        console.log(`[ROOM:LEAVE] User ${socket.data.user.name} left room ${roomId}`);
       } catch (error) {
-        console.error('Room leave error:', error);
+        console.error('[ROOM:LEAVE] Error:', error);
       }
     });
 
@@ -329,7 +376,7 @@ export const setupSocketIO = (server: any) => {
 
     // Disconnect
     socket.on('disconnect', async () => {
-      console.log(`User ${socket.data.user.name} disconnected: ${socket.id}`);
+      console.log(`[DISCONNECT] User ${socket.data.user.name} disconnected: ${socket.id}`);
       
       // Handle graceful disconnect - update status in all rooms
       try {
@@ -340,36 +387,124 @@ export const setupSocketIO = (server: any) => {
           }
         });
 
+        console.log(`[DISCONNECT] User was active in ${rooms.length} rooms`);
+
         for (const room of rooms) {
-          // Update participant status to disconnected
-          await prisma.roomParticipant.updateMany({
-            where: { 
-              roomId: room.roomId,
-              userId: socket.data.user.id,
-              status: 'active'
-            },
-            data: { 
-              status: 'disconnected',
-              lastActivity: new Date()
-            }
+          // Use transaction to ensure atomicity
+          const result = await prisma.$transaction(async (tx) => {
+            // Update participant status to disconnected
+            await tx.roomParticipant.updateMany({
+              where: { 
+                roomId: room.roomId,
+                userId: socket.data.user.id,
+                status: 'active'
+              },
+              data: { 
+                status: 'disconnected',
+                lastActivity: new Date()
+              }
+            });
+
+            // Get updated participant count and list
+            const roomData = await tx.room.findUnique({
+              where: { id: room.roomId },
+              include: {
+                participants: {
+                  where: { status: 'active' },
+                  include: {
+                    user: {
+                      select: { id: true, name: true, avatar: true }
+                    }
+                  }
+                }
+              }
+            });
+
+            return roomData;
           });
 
-          // Get updated count and notify others
-          const count = await getParticipantCount(room.roomId);
-          socket.to(room.roomId).emit('user:left', {
-            user: {
-              id: socket.data.user.id,
-              name: socket.data.user.name,
-              avatar: socket.data.user.avatar
-            },
-            count
-          });
+          if (result) {
+            const participantCount = result.participants.length;
+            const participantList = result.participants.map(p => ({
+              id: p.user.id,
+              name: p.user.name,
+              avatar: p.user.avatar,
+              cursorLine: p.cursorLine,
+              cursorColumn: p.cursorColumn,
+              status: p.status
+            }));
+
+            console.log(`[DISCONNECT] Room ${room.roomId} now has ${participantCount} active participants`);
+
+            // Broadcast to ALL users in room with authoritative count
+            io.to(room.roomId).emit('user:count:update', {
+              roomId: room.roomId,
+              count: participantCount,
+              participants: participantList,
+              event: 'user_disconnected',
+              user: {
+                id: socket.data.user.id,
+                name: socket.data.user.name,
+                avatar: socket.data.user.avatar
+              }
+            });
+          }
         }
       } catch (error) {
-        console.error('Disconnect cleanup error:', error);
+        console.error('[DISCONNECT] Cleanup error:', error);
       }
     });
   });
+
+  // Periodic reconciliation heartbeat - every 30 seconds
+  setInterval(async () => {
+    try {
+      console.log('[HEARTBEAT] Starting periodic reconciliation...');
+      
+      // Get all active rooms
+      const rooms = await prisma.room.findMany({
+        where: {
+          participants: {
+            some: { status: 'active' }
+          }
+        },
+        include: {
+          participants: {
+            where: { status: 'active' },
+            include: {
+              user: {
+                select: { id: true, name: true, avatar: true }
+              }
+            }
+          }
+        }
+      });
+
+      for (const room of rooms) {
+        const participantCount = room.participants.length;
+        const participantList = room.participants.map(p => ({
+          id: p.user.id,
+          name: p.user.name,
+          avatar: p.user.avatar,
+          cursorLine: p.cursorLine,
+          cursorColumn: p.cursorColumn,
+          status: p.status
+        }));
+
+        // Broadcast authoritative count to all users in room
+        io.to(room.id).emit('user:count:update', {
+          roomId: room.id,
+          count: participantCount,
+          participants: participantList,
+          event: 'heartbeat_reconciliation'
+        });
+
+        console.log(`[HEARTBEAT] Room ${room.id} reconciled: ${participantCount} participants`);
+      }
+    } catch (error) {
+      console.error('[HEARTBEAT] Reconciliation error:', error);
+    }
+  }, 30000); // 30 seconds
 
   return io;
 };

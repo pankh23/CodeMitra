@@ -26,9 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Forward the request to the backend
     // In Docker, use the service name; locally, use localhost
-    const backendUrl = process.env.NODE_ENV === 'production' 
-      ? 'http://backend:8000' 
-      : 'http://localhost:8000';
+    const backendUrl = process.env.BACKEND_URL || 'http://backend:8000';
     const response = await fetch(`${backendUrl}/api/code/execute`, {
       method: 'POST',
       headers: {

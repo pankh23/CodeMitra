@@ -1,13 +1,11 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useSocket } from '@/lib/socket';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Users, Code2, Globe, Lock, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Users, Code2, Globe, Lock, Clock, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Room {
@@ -29,6 +27,7 @@ export default function RoomManager() {
   const { socket, isConnected } = useSocket();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newRoom, setNewRoom] = useState({
     name: '',
@@ -40,44 +39,17 @@ export default function RoomManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('');
 
-  useEffect(() => {
-    fetchRooms();
-  }, []);
-
-  // Listen for real-time room updates
-  useEffect(() => {
-    if (socket && isConnected) {
-      socket.on('room:created', (room: Room) => {
-        toast.success(`New room "${room.name}" created!`);
-        setRooms(prev => [room, ...prev]);
-      });
-
-      socket.on('room:deleted', ({ roomId }: { roomId: string }) => {
-        toast.info('A room was deleted');
-        setRooms(prev => prev.filter(room => room.id !== roomId));
-      });
-
-      socket.on('room:updated', (updatedRoom: Room) => {
-        setRooms(prev => prev.map(room => 
-          room.id === updatedRoom.id ? updatedRoom : room
-        ));
-      });
-
-      return () => {
-        socket.off('room:created');
-        socket.off('room:deleted');
-        socket.off('room:updated');
-      };
-    }
-  }, [socket, isConnected]);
-
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!searchTerm && !selectedLanguage) {
+        setLoading(true);
+      } else {
+        setSearching(true);
+      }
+      
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (selectedLanguage) params.append('language', selectedLanguage);
-
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/rooms?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -95,8 +67,62 @@ export default function RoomManager() {
       toast.error('Failed to fetch rooms');
     } finally {
       setLoading(false);
+      setSearching(false);
     }
-  };
+  }, [searchTerm, selectedLanguage, token]);
+
+  useEffect(() => {
+    fetchRooms();
+  }, [fetchRooms]);
+
+  // Auto-search when search term or language changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm || selectedLanguage) {
+        setSearching(true);
+      }
+      fetchRooms();
+    }, 300); // Debounce search by 300ms
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, selectedLanguage, fetchRooms]);
+
+  // Listen for real-time room updates
+  useEffect(() => {
+    if (socket && isConnected) {
+      socket.on('room:created', (room: Room) => {
+        toast.success(`New room "${room.name}" created!`);
+        setRooms(prev => [room, ...prev]);
+      });
+      socket.on('room:deleted', ({ roomId }: { roomId: string }) => {
+        toast('A room was deleted');
+        setRooms(prev => prev.filter(room => room.id !== roomId));
+      });
+
+      socket.on('room:updated', (updatedRoom: Room) => {
+        setRooms(prev => prev.map(room => 
+          room.id === updatedRoom.id ? updatedRoom : room
+        ));
+      });
+
+      // Listen for user count updates in rooms
+      socket.on('user:count:update', (data) => {
+        console.log('[DASHBOARD] User count update:', data);
+        setRooms(prev => prev.map(room => 
+          room.id === data.roomId 
+            ? { ...room, _count: { participants: data.count } }
+            : room
+        ));
+      });
+
+      return () => {
+        socket.off('room:created');
+        socket.off('room:deleted');
+        socket.off('room:updated');
+        socket.off('user:count:update');
+      };
+    }
+  }, [socket, isConnected]);
 
   const createRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,6 +225,13 @@ export default function RoomManager() {
     return colors[language as keyof typeof colors] || 'bg-gray-500';
   };
 
+  const clearSearch = () => {
+    setSearchTerm('');
+    setSelectedLanguage('');
+  };
+
+  const hasActiveFilters = searchTerm || selectedLanguage;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -211,20 +244,7 @@ export default function RoomManager() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center space-x-4">
-          <h2 className="text-2xl font-bold">Available Rooms</h2>
-          <div className="flex items-center space-x-2">
-            {isConnected ? (
-              <Badge className="bg-green-500 text-white">
-                <Wifi className="w-3 h-3 mr-1" />
-                Connected
-              </Badge>
-            ) : (
-              <Badge className="bg-red-500 text-white">
-                <WifiOff className="w-3 h-3 mr-1" />
-                Disconnected
-              </Badge>
-            )}
-          </div>
+          <h2 className="text-2xl font-bold text-white">Available Rooms</h2>
         </div>
         <Button onClick={() => setShowCreateForm(true)}>
           <Code2 className="w-4 h-4 mr-2" />
@@ -233,17 +253,29 @@ export default function RoomManager() {
       </div>
 
       {/* Search and Filter */}
-      <div className="flex space-x-4">
-        <Input
-          placeholder="Search rooms..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1"
-        />
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search rooms by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-10"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        
         <select
           value={selectedLanguage}
           onChange={(e) => setSelectedLanguage(e.target.value)}
-          className="px-3 py-2 border rounded-md"
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 min-w-[140px]"
         >
           <option value="">All Languages</option>
           <option value="javascript">JavaScript</option>
@@ -251,9 +283,13 @@ export default function RoomManager() {
           <option value="java">Java</option>
           <option value="cpp">C++</option>
         </select>
-        <Button onClick={fetchRooms} variant="outline">
-          Search
-        </Button>
+        
+        {hasActiveFilters && (
+          <Button onClick={clearSearch} variant="outline" className="whitespace-nowrap">
+            <X className="w-4 h-4 mr-1" />
+            Clear
+          </Button>
+        )}
       </div>
 
       {/* Create Room Form */}
@@ -316,11 +352,34 @@ export default function RoomManager() {
 
       {/* Rooms List */}
       <div className="grid gap-4">
-        {rooms.length === 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-white">Loading rooms...</p>
+            </CardContent>
+          </Card>
+        ) : searching ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-white">Searching rooms...</p>
+            </CardContent>
+          </Card>
+        ) : rooms.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <Code2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-500">No rooms available</p>
+              {hasActiveFilters ? (
+                <div>
+                  <p className="text-white mb-2">No rooms found matching your search</p>
+                  <Button onClick={clearSearch} variant="outline" size="sm">
+                    Clear filters
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-white">No rooms available</p>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -330,7 +389,7 @@ export default function RoomManager() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="font-semibold text-lg">{room.name}</h3>
+                      <h3 className="font-semibold text-lg text-white">{room.name}</h3>
                       <Badge className={`${getLanguageColor(room.language)} text-white`}>
                         {getLanguageIcon(room.language)} {room.language}
                       </Badge>
@@ -343,10 +402,10 @@ export default function RoomManager() {
                     </div>
                     
                     {room.description && (
-                      <p className="text-gray-600 text-sm mb-3">{room.description}</p>
+                      <p className="text-white text-sm mb-3">{room.description}</p>
                     )}
                     
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <div className="flex items-center space-x-4 text-sm text-white">
                       <div className="flex items-center space-x-1">
                         <Users className="w-4 h-4" />
                         <span>{room._count.participants}/{room.maxCapacity}</span>

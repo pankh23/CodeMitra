@@ -219,8 +219,9 @@ roomRoutes.get('/',
           creator: { 
             select: { id: true, name: true } 
           },
-          _count: { 
-            select: { participants: true } 
+          participants: {
+            where: { status: 'active' },
+            select: { id: true }
           }
         },
         orderBy: { lastActivity: 'desc' }
@@ -228,10 +229,18 @@ roomRoutes.get('/',
       prisma.room.count({ where })
     ]);
 
+    // Transform rooms to include accurate participant count
+    const roomsWithAccurateCount = rooms.map(room => ({
+      ...room,
+      _count: {
+        participants: room.participants.length
+      }
+    }));
+
     res.json({
       success: true,
       data: { 
-        rooms, 
+        rooms: roomsWithAccurateCount, 
         total, 
         page: Number(page), 
         pages: Math.ceil(total / Number(limit)) 

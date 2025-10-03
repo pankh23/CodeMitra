@@ -45,8 +45,12 @@ codeRoutes.post('/execute',
     }
 
     try {
-      // Execute the code using the code executor
-      const result = await executeCode(code, language);
+      console.log(`[CODE:EXEC] Starting execution - Room: ${roomId}, User: ${userId}, Language: ${language}`);
+      
+      // Execute the code using the code executor with room and user context
+      const result = await executeCode(code, language, roomId, userId);
+
+      console.log(`[CODE:EXEC] Execution completed - Status: ${result.status}, Time: ${result.executionTime}ms`);
 
       // Save execution to database
       const execution = await prisma.codeExecution.create({
@@ -71,7 +75,9 @@ codeRoutes.post('/execute',
             output: result.output,
             error: result.error,
             executionTime: result.executionTime,
-            status: result.status
+            status: result.status,
+            compilationTime: result.compilationTime,
+            executionTimeOnly: result.executionTimeOnly
           }
         });
       }
@@ -81,7 +87,7 @@ codeRoutes.post('/execute',
         data: execution 
       });
     } catch (error) {
-      console.error('Code execution error:', error);
+      console.error('[CODE:EXEC] Error:', error);
       return res.status(500).json({ 
         success: false, 
         error: 'Code execution failed' 

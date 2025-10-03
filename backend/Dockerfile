@@ -43,6 +43,8 @@ RUN apk add --no-cache \
     g++ \
     make \
     bash \
+    nodejs \
+    npm \
     && ln -sf /usr/bin/python3 /usr/bin/python \
     && ln -sf /usr/bin/pip3 /usr/bin/pip
 

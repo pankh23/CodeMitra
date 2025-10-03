@@ -78,31 +78,41 @@ export default function CollaborativeEditor({ roomId }: { roomId: string }) {
 
       // Listen for room state (initial sync)
       socket.on('room:state', (data) => {
-        console.log('Room state received:', data);
+        console.log('[ROOM:STATE]', data);
         setCode(data.code);
         setLanguage(data.language);
         setParticipants(data.participants || []);
+        console.log(`[ROOM:STATE] Room synchronized with ${data.participantCount || data.participants?.length || 0} participants`);
         toast.success('Room synchronized!');
       });
 
-      // Listen for user join events
-      socket.on('user:joined', (data) => {
-        console.log('User joined:', data);
-        toast.success(`${data.user.name} joined the room (${data.count} users)`);
-        setParticipants(prev => {
-          const exists = prev.find(p => p.id === data.user.id);
-          if (!exists) {
-            return [...prev, data.user];
-          }
-          return prev;
-        });
+      // Listen for authoritative user count updates
+      socket.on('user:count:update', (data) => {
+        console.log('[USER:COUNT:UPDATE]', data);
+        
+        // Update participants list with authoritative data
+        setParticipants(data.participants);
+        
+        // Show toast for user events (not heartbeat)
+        if (data.event === 'user_joined') {
+          toast.success(`${data.user.name} joined the room (${data.count} users)`);
+        } else if (data.event === 'user_left') {
+          toast.(`${data.user.name} left the room (${data.count} users)`);
+        } else if (data.event === 'user_disconnected') {
+          toast.info(`${data.user.name} disconnected (${data.count} users)`);
+        }
+        // No toast for heartbeat_reconciliation
       });
 
-      // Listen for user leave events
+      // Legacy event handlers for backward compatibility
+      socket.on('user:joined', (data) => {
+        console.log('[LEGACY] User joined:', data);
+        // This should not be used anymore, but keeping for safety
+      });
+
       socket.on('user:left', (data) => {
-        console.log('User left:', data);
-        toast.info(`${data.user.name} left the room (${data.count} users)`);
-        setParticipants(prev => prev.filter(p => p.id !== data.user.id));
+        console.log('[LEGACY] User left:', data);
+        // This should not be used anymore, but keeping for safety
       });
 
       // Listen for code updates

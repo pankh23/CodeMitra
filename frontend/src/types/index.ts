@@ -105,9 +105,11 @@ export interface ExecutionResult {
 export interface SocketEvents {
   'room:join': (data: { roomId: string }) => void;
   'room:leave': (data: { roomId: string }) => void;
-  'room:joined': (data: { roomId: string }) => void;
-  'user:joined': (data: { user: User; count: number }) => void;
-  'user:left': (data: { user: User; count: number }) => void;
+  'room:joined': (data: { roomId: string; participantCount: number; participants: RoomParticipant[] }) => void;
+  'room:state': (data: { roomId: string; code: string; language: string; participants: RoomParticipant[]; participantCount?: number }) => void;
+  'user:count:update': (data: { roomId: string; count: number; participants: RoomParticipant[]; event: 'user_joined' | 'user_left' | 'user_disconnected' | 'heartbeat_reconciliation'; user: User }) => void;
+  'user:joined': (data: { user: User; count: number }) => void; // Legacy
+  'user:left': (data: { user: User; count: number }) => void; // Legacy
   'code:update': (data: { roomId: string; code: string; language: string }) => void;
   'code:updated': (data: { code: string; language: string; user: User }) => void;
   'cursor:update': (data: { roomId: string; line: number; column: number }) => void;
