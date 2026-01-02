@@ -50,9 +50,20 @@ export interface CollaborativeEditorState {
 }
 
 export function useCollaborativeEditor(roomId: string, initialCode: string = '', initialLanguage: string = 'javascript') {
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, joinRoom, updateCode } = useSocket();
   const { user } = useAuth();
   const { currentRoom } = useRoom();
+  
+  console.log(`🔧🔧🔧 useCollaborativeEditor: Hook called with roomId="${roomId}", socket=${!!socket}, isConnected=${isConnected}, user="${user?.name}", currentRoom="${currentRoom?.id}"`);
+  console.log(`🔧🔧🔧 useCollaborativeEditor: initialCode length=${initialCode.length}, initialLanguage="${initialLanguage}"`);
+  
+  // Add interval debugging to track state changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log(`🔧⏰ useCollaborativeEditor: State check - roomId="${roomId}", socket=${!!socket}, isConnected=${isConnected}, user="${user?.name}"`);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [roomId, socket, isConnected, user]);
   
   // Editor state
   const [code, setCode] = useState(initialCode);
@@ -66,33 +77,49 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
   // Refs for tracking state
   const lastCodeRef = useRef(initialCode);
   const syncTimeoutRef = useRef<NodeJS.Timeout>();
-  const operationBufferRef = useRef<Operation[]>([]);
   
-  // Debounced sync function
-  const debouncedSync = useCallback((newCode: string) => {
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current);
-    }
-    
-    syncTimeoutRef.current = setTimeout(() => {
-      syncCodeChanges(newCode);
-    }, 300); // 300ms debounce
+  // Get unique color for user
+  const getUserColor = useCallback((userId: string): string => {
+    const colors = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
+      '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+      '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA'
+    ];
+    const index = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+    return colors[index];
   }, []);
   
   // Sync code changes with other users
   const syncCodeChanges = useCallback(async (newCode: string) => {
-    if (!socket || !isConnected || !user || !currentRoom) return;
+    console.log(`📤📤📤 syncCodeChanges: CALLED!`);
+    console.log(`📤📤📤 syncCodeChanges: socket=${!!socket}, isConnected=${isConnected}, user=${user?.name}, roomId=${roomId}`);
+    
+    if (!socket || !isConnected || !user || !roomId) {
+      console.log(`❌❌❌ syncCodeChanges: CANNOT SYNC - missing requirements:`);
+      console.log(`❌❌❌ - socket: ${!!socket}`);
+      console.log(`❌❌❌ - isConnected: ${isConnected}`);
+      console.log(`❌❌❌ - user: ${user?.name}`);
+      console.log(`❌❌❌ - roomId: ${roomId}`);
+      return;
+    }
     
     const oldCode = lastCodeRef.current;
-    if (oldCode === newCode) return;
+    console.log(`📤📤📤 syncCodeChanges: oldCode length=${oldCode.length}, newCode length=${newCode.length}`);
     
-    let transformedOperations: any[] = [];
+    if (oldCode === newCode) {
+      console.log(`📤📤📤 syncCodeChanges: Code unchanged - skipping sync`);
+      return;
+    }
+    
+    let transformedOperations: Operation[] = [];
     
     try {
       setIsSyncing(true);
+      console.log(`📤📤📤 syncCodeChanges: Setting syncing state to true`);
       
       // Create operations from text changes
       const operations = ot.createOperation(oldCode, newCode, user.id, Date.now());
+      console.log(`📤📤📤 syncCodeChanges: Created ${operations.length} operations`);
       
       // Transform operations against pending changes
       transformedOperations = operations;
@@ -100,38 +127,68 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
         const result = ot.transform(operations[0], pendingOp);
         transformedOperations = result.transformed;
       }
+      console.log(`📤📤📤 syncCodeChanges: Transformed operations, final count: ${transformedOperations.length}`);
       
-      // Emit code change event
-      socket.emit('codeChange', {
-        roomId: currentRoom.id,
-        operations: transformedOperations,
-        version: version,
-        userId: user.id,
-        timestamp: Date.now()
-      });
+      // Use SocketContext method instead of direct socket.emit
+      console.log(`📤📤📤 syncCodeChanges: ABOUT TO CALL updateCode method for room "${roomId}"`);
+      console.log(`📤📤📤 syncCodeChanges: Code length: ${newCode.length}, language: ${language}`);
+      
+      if (updateCode) {
+        updateCode(roomId, newCode, language);
+        console.log(`✅✅✅ syncCodeChanges: updateCode method SUCCESSFULLY CALLED for room "${roomId}"`);
+      } else {
+        console.log(`❌❌❌ syncCodeChanges: updateCode function not available!`);
+      }
       
       // Update local state
       setVersion(prev => prev + 1);
       setLastSyncTime(Date.now());
       lastCodeRef.current = newCode;
       setPendingChanges([]);
+      console.log(`📤📤📤 syncCodeChanges: Local state updated successfully`);
       
     } catch (error) {
-      console.error('Failed to sync code changes:', error);
+      console.error('❌❌❌ syncCodeChanges: Failed to sync code changes:', error);
       // Add to pending changes for retry
       if (transformedOperations.length > 0) {
         setPendingChanges(prev => [...prev, ...transformedOperations]);
       }
     } finally {
       setIsSyncing(false);
+      console.log(`📤📤📤 syncCodeChanges: Setting syncing state to false`);
     }
-  }, [socket, isConnected, user, currentRoom, pendingChanges, version]);
+  }, [socket, isConnected, user?.id, roomId, pendingChanges, language]); // Removed function dependency
+  
+  // Debounced sync function
+  const debouncedSync = useCallback((newCode: string) => {
+    console.log(`⏰⏰⏰ debouncedSync: Called with code length ${newCode.length}`);
+    
+    if (syncTimeoutRef.current) {
+      console.log(`⏰⏰⏰ debouncedSync: Clearing existing timeout`);
+      clearTimeout(syncTimeoutRef.current);
+    }
+    
+    console.log(`⏰⏰⏰ debouncedSync: Setting 300ms timeout for syncCodeChanges`);
+    syncTimeoutRef.current = setTimeout(() => {
+      console.log(`⏰⏰⏰ debouncedSync: Timeout fired - calling syncCodeChanges now!`);
+      syncCodeChanges(newCode);
+    }, 300); // 300ms debounce
+  }, [syncCodeChanges]);
   
   // Handle code changes from user input
   const handleCodeChange = useCallback((newCode: string) => {
+    console.log(`🔄🔄🔄 useCollaborativeEditor: CODE CHANGE DETECTED!`);
+    console.log(`🔄🔄🔄 useCollaborativeEditor: newCode length: ${newCode.length}`);
+    console.log(`🔄🔄🔄 useCollaborativeEditor: roomId: "${roomId}"`);
+    console.log(`🔄🔄🔄 useCollaborativeEditor: user: "${user?.name}"`);
+    console.log(`🔄🔄🔄 useCollaborativeEditor: socket connected: ${!!socket && isConnected}`);
+    
     setCode(newCode);
+    
+    console.log(`🔄🔄🔄 useCollaborativeEditor: About to call debouncedSync...`);
     debouncedSync(newCode);
-  }, [debouncedSync]);
+    console.log(`🔄🔄🔄 useCollaborativeEditor: debouncedSync called successfully`);
+  }, [debouncedSync, roomId, user, socket, isConnected]);
   
   // Handle language changes
   const handleLanguageChange = useCallback((newLanguage: string) => {
@@ -152,70 +209,59 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
   const updateCursorPosition = useCallback((position: { lineNumber: number; column: number }, selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => {
     if (!socket || !isConnected || !user || !currentRoom) return;
     
-    const cursorData: CursorPosition = {
-      userId: user.id,
-      userName: user.name || 'Anonymous',
-      userColor: getUserColor(user.id),
-      position,
-      selection
-    };
-    
     // Emit cursor update
-    socket.emit('cursorUpdate', {
+    socket.emit('cursor:position', {
       roomId: currentRoom.id,
-      cursor: cursorData,
+      position: position,
+      selection: selection,
       timestamp: Date.now()
     });
   }, [socket, isConnected, user, currentRoom]);
-  
-  // Get unique color for user
-  const getUserColor = useCallback((userId: string): string => {
-    const colors = [
-      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
-      '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
-      '#BB8FCE', '#85C1E9', '#F8C471', '#82E0AA'
-    ];
-    const index = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-    return colors[index];
-  }, []);
   
   // Socket event handlers
   useEffect(() => {
     if (!socket) return;
     
-    // Handle incoming code changes
-    const handleCodeChange = (data: { operations: Operation[]; userId: string; version: number; timestamp: number }) => {
-      if (data.userId === user?.id) return; // Ignore own changes
+    // Handle incoming code changes from backend
+    const handleCodeChange = (data: { code: string; language?: string; userId: string; userName?: string; roomId: string; timestamp: number }) => {
+      console.log('🔄🔄🔄 useCollaborativeEditor: Received code:updated event', data);
+      console.log('🔄🔄🔄 useCollaborativeEditor: Current user ID:', user?.id);
+      console.log('🔄🔄🔄 useCollaborativeEditor: Event user ID:', data.userId);
+      console.log('🔄🔄🔄 useCollaborativeEditor: Should ignore:', data.userId === user?.id);
       
-      try {
-        // Apply transformed operations
-        const newCode = ot.applyOperations(code, data.operations);
-        setCode(newCode);
-        lastCodeRef.current = newCode;
-        
-        // Update version
-        setVersion(data.version);
-        
-        // Add to pending changes for future transformations
-        setPendingChanges(prev => [...prev, ...data.operations]);
-        
-      } catch (error) {
-        console.error('Failed to apply remote code changes:', error);
-        // Request full sync on error
-        socket.emit('requestSync', { roomId: currentRoom?.id, userId: user?.id });
+      if (data.userId === user?.id) {
+        console.log('🔄🔄🔄 useCollaborativeEditor: Ignoring own code change');
+        return; // Ignore own changes
       }
+      
+      console.log('🔄🔄🔄 useCollaborativeEditor: Processing code change from another user');
+      setCode(data.code);
+      if (data.language) {
+        setLanguage(data.language);
+      }
+      lastCodeRef.current = data.code;
+      setPendingChanges([]);
+      console.log('🔄🔄🔄 useCollaborativeEditor: Code updated successfully');
     };
     
     // Handle incoming cursor updates
-    const handleCursorUpdate = (data: { cursor: CursorPosition; userId: string }) => {
+    const handleCursorUpdate = (data: { position: { lineNumber: number; column: number }; selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }; userId: string; userName?: string; roomId: string; timestamp: number }) => {
       if (data.userId === user?.id) return; // Ignore own cursor
+      
+      const newCursor: CursorPosition = {
+        userId: data.userId,
+        userName: data.userName || '',
+        userColor: getUserColor(data.userId),
+        position: data.position,
+        selection: data.selection
+      };
       
       setCursors(prev => {
         const existing = prev.find(c => c.userId === data.userId);
         if (existing) {
-          return prev.map(c => c.userId === data.userId ? data.cursor : c);
+          return prev.map(c => c.userId === data.userId ? newCursor : c);
         } else {
-          return [...prev, data.cursor];
+          return [...prev, newCursor];
         }
       });
     };
@@ -231,14 +277,18 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
       if (data.userId === user?.id) return; // Ignore own requests
       
       // Send current code state
-      socket.emit('codeSync', {
-        roomId: data.roomId,
-        code: code,
-        language: language,
-        version: version,
-        userId: user?.id,
-        timestamp: Date.now()
+      socket.emit('code:sync-request', {
+        roomId: data.roomId
       });
+    };
+    
+    // Handle incoming sync from room:code-sync (when joining room)
+    const handleRoomCodeSync = (data: { code: string; language: string; input?: string; output?: string; roomId: string }) => {
+      console.log('🔄 MonacoEditor: Received room:code-sync', data);
+      setCode(data.code);
+      setLanguage(data.language);
+      lastCodeRef.current = data.code;
+      setPendingChanges([]);
     };
     
     // Handle incoming sync
@@ -264,25 +314,27 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
     };
     
     // Register event listeners
-    socket.on('codeChange', handleCodeChange);
-    socket.on('cursorUpdate', handleCursorUpdate);
-    socket.on('languageChange', handleLanguageChange);
-    socket.on('syncRequest', handleSyncRequest);
-    socket.on('codeSync', handleCodeSync);
-    socket.on('userJoin', handleUserJoin);
-    socket.on('userLeave', handleUserLeave);
+    socket.on('code:updated', handleCodeChange);
+    socket.on('cursor:position-updated', handleCursorUpdate);
+    socket.on('code:language-changed', handleLanguageChange);
+    socket.on('code:sync-request', handleSyncRequest);
+    socket.on('code:sync-response', handleCodeSync);
+    socket.on('room:code-sync', handleRoomCodeSync);
+    socket.on('room:user-joined', handleUserJoin);
+    socket.on('room:user-left', handleUserLeave);
     
     // Cleanup
     return () => {
-      socket.off('codeChange', handleCodeChange);
-      socket.off('cursorUpdate', handleCursorUpdate);
-      socket.off('languageChange', handleLanguageChange);
-      socket.off('syncRequest', handleSyncRequest);
-      socket.off('codeSync', handleCodeSync);
-      socket.off('userJoin', handleUserJoin);
-      socket.off('userLeave', handleUserLeave);
+      socket.off('code:updated', handleCodeChange);
+      socket.off('cursor:position-updated', handleCursorUpdate);
+      socket.off('code:language-changed', handleLanguageChange);
+      socket.off('code:sync-request', handleSyncRequest);
+      socket.off('code:sync-response', handleCodeSync);
+      socket.off('room:code-sync', handleRoomCodeSync);
+      socket.off('room:user-joined', handleUserJoin);
+      socket.off('room:user-left', handleUserLeave);
     };
-  }, [socket, user?.id, code, language, version, currentRoom?.id]);
+  }, [socket, user?.id, user?.name, code, language, version, currentRoom?.id, getUserColor]);
   
   // Cleanup on unmount
   useEffect(() => {
@@ -293,19 +345,66 @@ export function useCollaborativeEditor(roomId: string, initialCode: string = '',
     };
   }, []);
   
-  // Request initial sync when joining room
+  // Request initial sync when joining room - ENHANCED VERSION
   useEffect(() => {
-    if (socket && isConnected && currentRoom && user) {
-      socket.emit('joinRoom', {
-        roomId: currentRoom.id,
-        userId: user.id,
-        userName: user.name
-      });
-      
-      // Request current code state
-      socket.emit('requestSync', { roomId: currentRoom.id, userId: user.id });
+    console.log(`🔍🔍🔍 useCollaborativeEditor: ===== ROOM JOIN useEffect TRIGGERED =====`);
+    console.log(`🔍🔍🔍 useCollaborativeEditor: Time: ${new Date().toISOString()}`);
+    console.log(`🔍🔍🔍 useCollaborativeEditor: isConnected=${isConnected}, user=${user?.name} (ID: ${user?.id}), roomId="${roomId}"`);
+    console.log(`🔍🔍🔍 useCollaborativeEditor: socket exists=${!!socket}, joinRoom function exists=${!!joinRoom}`);
+    
+    // Add unique user identification check
+    if (user) {
+      console.log(`👤👤👤 useCollaborativeEditor: USER IDENTITY CHECK - Name: "${user.name}", ID: "${user.id}", Email: "${user.email}"`);
     }
-  }, [socket, isConnected, currentRoom, user]);
+    
+    // Force a delay to avoid any timing issues
+    setTimeout(() => {
+      console.log(`🔍🔍🔍 useCollaborativeEditor: DELAYED CHECK - conditions check starting...`);
+      
+      if (isConnected && user && roomId && socket && joinRoom) {
+        console.log(`🔌🔌🔌 useCollaborativeEditor: ALL CONDITIONS MET - About to join Socket.IO room "${roomId}"`);
+        console.log(`🔌🔌🔌 useCollaborativeEditor: User joining: ${user.name} (${user.id})`);
+        
+        // CRITICAL: Verify the user is actually authorized to be in this room
+        // In production, this should be verified on the backend, but we'll emit with user data
+        joinRoom(roomId);
+        console.log(`✅✅✅ useCollaborativeEditor: joinRoom method SUCCESSFULLY CALLED for room "${roomId}" by user "${user.name}" (${user.id})`);
+        
+        // Enhanced test events with user identification
+        console.log(`🧪🧪🧪 useCollaborativeEditor: About to emit test:simple event...`);
+        socket.emit('test:simple', { 
+          message: `Hello from ${user.name} (${user.id})`, 
+          roomId: roomId, 
+          userId: user.id,
+          userName: user.name,
+          timestamp: Date.now() 
+        });
+        console.log(`🧪🧪🧪 useCollaborativeEditor: test:simple event EMITTED for room "${roomId}"`);
+        
+        // Enhanced delayed check
+        setTimeout(() => {
+          console.log(`⏰⏰⏰ useCollaborativeEditor: 2 second check for user ${user.name} (${user.id})`);
+          socket.emit('test:delayed', { 
+            message: `Delayed test from ${user.name}`, 
+            roomId: roomId, 
+            userId: user.id,
+            userName: user.name,
+            timestamp: Date.now() 
+          });
+          console.log(`⏰⏰⏰ useCollaborativeEditor: test:delayed event EMITTED`);
+        }, 2000);
+        
+      } else {
+        console.log(`❌❌❌ useCollaborativeEditor: CANNOT JOIN ROOM - MISSING REQUIREMENTS:`);
+        console.log(`❌❌❌ - isConnected: ${isConnected}`);
+        console.log(`❌❌❌ - user: ${user?.name} (${user?.id})`);
+        console.log(`❌❌❌ - roomId: "${roomId}"`);
+        console.log(`❌❌❌ - socket: ${!!socket}`);
+        console.log(`❌❌❌ - joinRoom: ${!!joinRoom}`);
+      }
+    }, 100); // 100ms delay to avoid timing issues
+    
+  }, [isConnected, user?.id, user?.name, roomId, socket, joinRoom]); // Enhanced dependencies
   
   return {
     // State

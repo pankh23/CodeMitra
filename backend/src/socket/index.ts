@@ -1,8 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { setupRoomHandlers } from './roomHandlers';
 import { setupCodeHandlers } from './codeHandlers';
-import { setupChatHandlers } from './chatHandlers';
-import { setupVideoHandlers } from './videoHandlers';
 import { prisma } from '../utils/prisma';
 import jwt from 'jsonwebtoken';
 import { AuthenticatedSocket } from './types';
@@ -45,25 +43,36 @@ export const setupSocketHandlers = (io: Server) => {
 
     // Debug: Listen for all events at the socket level
     socket.onAny((eventName, ...args) => {
-      console.log(`🔍 DEBUG: Socket.IO level - Received event '${eventName}' on socket ${socket.id} with args:`, args);
+      console.log(`🔍🔍🔍 DEBUG: Socket.IO level - Received event '${eventName}' on socket ${socket.id} from user ${socket.user?.name}`);
+      console.log(`🔍🔍🔍 DEBUG: Event args:`, JSON.stringify(args, null, 2));
+      
+      // Special handling for collaborative coding events
+      if (eventName === 'room:join') {
+        console.log(`🔌🔌🔌 BACKEND: room:join event received!`);
+      } else if (eventName === 'code:update') {
+        console.log(`📤📤📤 BACKEND: code:update event received!`);
+      } else if (eventName.startsWith('test:')) {
+        console.log(`🧪🧪🧪 BACKEND: Test event received: ${eventName}`);
+      }
     });
     
-    // Test event listener
+    // Test event listeners
     socket.on('test:simple', (data) => {
-      console.log(`🔍 DEBUG: Received test:simple event on socket ${socket.id} with data:`, data);
-      socket.emit('test:simple:response', { received: true, data });
+      console.log(`🧪🧪🧪 BACKEND: Received test:simple event on socket ${socket.id} with data:`, data);
+      socket.emit('test:simple:response', { received: true, data, timestamp: Date.now() });
+    });
+    
+    socket.on('test:delayed', (data) => {
+      console.log(`🧪🧪🧪 BACKEND: Received test:delayed event on socket ${socket.id} with data:`, data);
+      socket.emit('test:delayed:response', { received: true, data, timestamp: Date.now() });
     });
 
     // Setup all handlers
     console.log('🔧 Setting up handlers for socket:', socket.id);
-    setupRoomHandlers(io, socket, isUserInRoom);
+    setupRoomHandlers(io, socket, isUserInRoom, roomUsers);
     console.log('🔧 Room handlers setup complete');
     setupCodeHandlers(io, socket, isUserInRoom);
     console.log('🔧 Code handlers setup complete');
-    setupChatHandlers(io, socket, isUserInRoom);
-    console.log('🔧 Chat handlers setup complete');
-    setupVideoHandlers(io, socket, isUserInRoom);
-    console.log('🔧 Video handlers setup complete');
 
     // Handle user disconnect
     socket.on('disconnect', async () => {

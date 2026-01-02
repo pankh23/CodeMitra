@@ -1,20 +1,20 @@
-export declare const generalApiLimiter: import("express-rate-limit").RateLimitRequestHandler;
-export declare const loginLimiter: import("express-rate-limit").RateLimitRequestHandler;
-export declare const registrationLimiter: import("express-rate-limit").RateLimitRequestHandler;
-export declare const codeExecutionLimiter: import("express-rate-limit").RateLimitRequestHandler;
-export declare const websocketLimiter: import("express-rate-limit").RateLimitRequestHandler;
-export declare const roomCreationLimiter: import("express-rate-limit").RateLimitRequestHandler;
-export declare const chatMessageLimiter: import("express-rate-limit").RateLimitRequestHandler;
-export declare const healthCheckLimiter: import("express-rate-limit").RateLimitRequestHandler;
+export declare const generalApiLimiter: any;
+export declare const loginLimiter: any;
+export declare const registrationLimiter: any;
+export declare const codeExecutionLimiter: any;
+export declare const websocketLimiter: any;
+export declare const roomCreationLimiter: any;
+export declare const chatMessageLimiter: any;
+export declare const healthCheckLimiter: any;
 declare const _default: {
-    generalApiLimiter: import("express-rate-limit").RateLimitRequestHandler;
-    loginLimiter: import("express-rate-limit").RateLimitRequestHandler;
-    registrationLimiter: import("express-rate-limit").RateLimitRequestHandler;
-    codeExecutionLimiter: import("express-rate-limit").RateLimitRequestHandler;
-    websocketLimiter: import("express-rate-limit").RateLimitRequestHandler;
-    roomCreationLimiter: import("express-rate-limit").RateLimitRequestHandler;
-    chatMessageLimiter: import("express-rate-limit").RateLimitRequestHandler;
-    healthCheckLimiter: import("express-rate-limit").RateLimitRequestHandler;
+    generalApiLimiter: any;
+    loginLimiter: any;
+    registrationLimiter: any;
+    codeExecutionLimiter: any;
+    websocketLimiter: any;
+    roomCreationLimiter: any;
+    chatMessageLimiter: any;
+    healthCheckLimiter: any;
 };
 export default _default;
 //# sourceMappingURL=rateLimiter.d.ts.map

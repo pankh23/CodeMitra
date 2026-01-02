@@ -1,13 +1,13 @@
 import { prisma } from '../utils/prisma';
 import { AuthenticatedSocket, Server } from './types';
 import { Queue } from 'bullmq';
-import { redisClient } from '../utils/redis';
+import { redisClient, bullMQRedisConfig } from '../utils/redis';
 
 
 
 // Create BullMQ queue for code execution
 const codeExecutionQueue = new Queue('code-execution', {
-  connection: redisClient,
+  connection: bullMQRedisConfig,
   defaultJobOptions: {
     removeOnComplete: 10,
     removeOnFail: 50,
@@ -22,18 +22,15 @@ const codeExecutionQueue = new Queue('code-execution', {
 export const setupCodeHandlers = (io: Server, socket: AuthenticatedSocket, isUserInRoom: (userId: string, roomId: string) => Promise<boolean>) => {
   console.log('🔧 Setting up code handlers for socket:', socket.id);
   
-  // Debug: Listen for all events to see what's coming in
-  socket.onAny((eventName, ...args) => {
-    console.log(`🔍 DEBUG: Received event '${eventName}' on socket ${socket.id} with args:`, args);
-  });
   // Handle code updates with real-time sync
-  socket.on('code:update', async (data: { roomId: string; code: string; language?: string }) => {
+  socket.on('code:update', async (data: { roomId: string; code: string; language?: string; userId?: string; userName?: string; timestamp?: number }) => {
     try {
       const { roomId, code, language } = data;
       const userId = socket.userId!;
 
-      console.log(`🔍 DEBUG: Received code:update event from user ${socket.user?.name} in room ${roomId}`);
-      console.log(`🔍 DEBUG: Event data:`, data);
+      console.log(`📤📤📤 BACKEND: code:update handler called for roomId="${roomId}" by user="${socket.user?.name}"`);
+      console.log(`📤📤📤 BACKEND: Event data:`, data);
+      console.log(`📤📤📤 BACKEND: Code length: ${code.length}, language: ${language}`);
 
       // Check if user is authorized
       const isAuthorized = await isUserInRoom(userId, roomId);
@@ -53,10 +50,10 @@ export const setupCodeHandlers = (io: Server, socket: AuthenticatedSocket, isUse
         data: updateData
       });
 
-      // Broadcast code update to all users in the room except sender
-      socket.to(roomId).emit('code:updated', {
+      // CRITICAL FIX: Broadcast code update to ALL users in the room (including sender for consistency)
+      io.to(roomId).emit('code:updated', {
         code,
-        language,
+        language: language || 'javascript',
         userId,
         userName: socket.user?.name,
         roomId,

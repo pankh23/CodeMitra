@@ -3,7 +3,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import tmp from 'tmp';
 import winston from 'winston';
-import { SecurityScanResult, SecurityIssue, WorkerConfig } from '@/types';
+import { SecurityScanResult, SecurityIssue, WorkerConfig } from '../types';
 
 // Logger configuration
 export const logger = winston.createLogger({

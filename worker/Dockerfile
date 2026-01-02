@@ -21,7 +21,8 @@ RUN npm install --save-dev tsc-alias
 COPY worker/src ./src
 
 # Build the application and resolve path aliases
-RUN npm run build && npx tsc-alias -p tsconfig.json
+RUN npm run build
+RUN npx tsc-alias -p tsconfig.json -f
 
 # Verify build output
 RUN ls -la dist/ || echo "Build failed - dist directory not created"

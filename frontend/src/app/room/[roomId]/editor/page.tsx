@@ -147,6 +147,8 @@ export default function RoomEditorPage() {
     );
   }
 
+  console.log(`📄📄📄 RoomEditorPage: Rendering with roomId param="${roomId}", currentRoom.id="${currentRoom.id}", user="${user?.name}"`);
+  
   return (
     <div className="h-screen">
       <NewCollaborativeLayout

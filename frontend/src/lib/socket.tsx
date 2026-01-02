@@ -10,24 +10,11 @@ export interface SocketContextType {
   isConnected: boolean;
   joinRoom: (roomId: string) => void;
   leaveRoom: (roomId: string) => void;
-  sendMessage: (roomId: string, message: string) => void;
   updateCode: (roomId: string, code: string, language?: string) => void;
   executeCode: (roomId: string, code: string, language: string, input?: string) => void;
   updateInput: (roomId: string, input: string) => void;
   updateCursor: (roomId: string, position: { line: number; column: number }) => void;
   updateSelection: (roomId: string, selection: any) => void;
-  startTyping: (roomId: string) => void;
-  stopTyping: (roomId: string) => void;
-  // Video call methods
-  joinVideoCall: (roomId: string) => void;
-  leaveVideoCall: (roomId: string) => void;
-  sendVideoOffer: (roomId: string, targetUserId: string, offer: RTCSessionDescriptionInit) => void;
-  sendVideoAnswer: (roomId: string, targetUserId: string, answer: RTCSessionDescriptionInit) => void;
-  sendIceCandidate: (roomId: string, targetUserId: string, candidate: RTCIceCandidate) => void;
-  toggleMute: (roomId: string, isMuted: boolean) => void;
-  toggleVideo: (roomId: string, isVideoOff: boolean) => void;
-  startScreenShare: (roomId: string) => void;
-  stopScreenShare: (roomId: string) => void;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -86,6 +73,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       newSocket.on('room:error', (data) => {
         console.error('Room error:', data);
         toast.error(data.message || 'Room error occurred');
+      });
+
+      // CRITICAL FIX: Listen for room users updates
+      newSocket.on('room:users', (data) => {
+        console.log('Room users updated:', data);
+        // This will be handled by the room component
       });
 
       // Code event listeners
@@ -228,8 +221,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
   // Room methods
   const joinRoom = (roomId: string) => {
-    if (socket) {
-      socket.emit('room:join', { roomId });
+    if (socket && user) {
+      console.log(`🔌🔌🔌 SocketContext.joinRoom: Emitting room:join for room "${roomId}" by user "${user.name}"`);
+      socket.emit('room:join', { 
+        roomId, 
+        userId: user.id, 
+        userName: user.name 
+      });
+      console.log(`✅✅✅ SocketContext.joinRoom: room:join event SUCCESSFULLY EMITTED`);
+    } else {
+      console.log(`❌❌❌ SocketContext.joinRoom: Cannot join - socket=${!!socket}, user=${user?.name}`);
     }
   };
 
@@ -239,24 +240,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Chat methods
-  const sendMessage = (roomId: string, message: string) => {
-    if (socket) {
-      socket.emit('chat:send-message', { roomId, content: message });
-    }
-  };
-
-  const startTyping = (roomId: string) => {
-    if (socket) {
-      socket.emit('chat:typing-start', { roomId });
-    }
-  };
-
-  const stopTyping = (roomId: string) => {
-    if (socket) {
-      socket.emit('chat:typing-stop', { roomId });
-    }
-  };
 
   // Code methods
   const updateCode = (roomId: string, code: string, language?: string) => {
@@ -289,83 +272,17 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Video methods
-  const joinVideoCall = (roomId: string) => {
-    if (socket) {
-      socket.emit('video:join-call', { roomId });
-    }
-  };
-
-  const leaveVideoCall = (roomId: string) => {
-    if (socket) {
-      socket.emit('video:leave-call', { roomId });
-    }
-  };
-
-  const sendVideoOffer = (roomId: string, targetUserId: string, offer: RTCSessionDescriptionInit) => {
-    if (socket) {
-      socket.emit('video:offer', { roomId, targetUserId, offer });
-    }
-  };
-
-  const sendVideoAnswer = (roomId: string, targetUserId: string, answer: RTCSessionDescriptionInit) => {
-    if (socket) {
-      socket.emit('video:answer', { roomId, targetUserId, answer });
-    }
-  };
-
-  const sendIceCandidate = (roomId: string, targetUserId: string, candidate: RTCIceCandidate) => {
-    if (socket) {
-      socket.emit('video:ice-candidate', { roomId, targetUserId, candidate });
-    }
-  };
-
-  const toggleMute = (roomId: string, isMuted: boolean) => {
-    if (socket) {
-      socket.emit('video:toggle-mute', { roomId, isMuted });
-    }
-  };
-
-  const toggleVideo = (roomId: string, isVideoOff: boolean) => {
-    if (socket) {
-      socket.emit('video:toggle-video', { roomId, isVideoOff });
-    }
-  };
-
-  const startScreenShare = (roomId: string) => {
-    if (socket) {
-      socket.emit('video:start-screen-share', { roomId });
-    }
-  };
-
-  const stopScreenShare = (roomId: string) => {
-    if (socket) {
-      socket.emit('video:stop-screen-share', { roomId });
-    }
-  };
 
   const value: SocketContextType = {
     socket,
     isConnected,
     joinRoom,
     leaveRoom,
-    sendMessage,
     updateCode,
     executeCode,
     updateInput,
     updateCursor,
     updateSelection,
-    startTyping,
-    stopTyping,
-    joinVideoCall,
-    leaveVideoCall,
-    sendVideoOffer,
-    sendVideoAnswer,
-    sendIceCandidate,
-    toggleMute,
-    toggleVideo,
-    startScreenShare,
-    stopScreenShare,
   };
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;

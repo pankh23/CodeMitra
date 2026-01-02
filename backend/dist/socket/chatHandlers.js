@@ -1,14 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupChatHandlers = void 0;
-const index_1 = require("./index");
 const prisma_1 = require("../utils/prisma");
-const setupChatHandlers = (io, socket) => {
+const setupChatHandlers = (io, socket, isUserInRoom) => {
     socket.on('chat:send-message', async (data) => {
         try {
             const { roomId, content, type = 'text' } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('chat:error', { message: 'You are not authorized to send messages in this room' });
                 return;
@@ -49,7 +48,7 @@ const setupChatHandlers = (io, socket) => {
         try {
             const { roomId, page = 1, limit = 50 } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('chat:error', { message: 'You are not authorized to view chat history in this room' });
                 return;
@@ -89,7 +88,7 @@ const setupChatHandlers = (io, socket) => {
         try {
             const { roomId, messageId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('chat:error', { message: 'You are not authorized to delete messages in this room' });
                 return;
@@ -141,7 +140,7 @@ const setupChatHandlers = (io, socket) => {
         try {
             const { roomId, messageId, content } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('chat:error', { message: 'You are not authorized to edit messages in this room' });
                 return;
@@ -193,7 +192,7 @@ const setupChatHandlers = (io, socket) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -211,7 +210,7 @@ const setupChatHandlers = (io, socket) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -229,7 +228,7 @@ const setupChatHandlers = (io, socket) => {
         try {
             const { roomId, messageId, reaction } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('chat:error', { message: 'You are not authorized to react to messages in this room' });
                 return;

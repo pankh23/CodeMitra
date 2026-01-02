@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import Redis from 'ioredis';
-import { DockerExecutor } from './executors/dockerExecutor';
+import { SimpleExecutor } from './executors/simpleExecutor';
 import dotenv from 'dotenv';
 import * as http from 'http';
 
@@ -20,8 +20,8 @@ const redisConfig = {
 
 console.log('Redis Config:', { host: redisConfig.host, port: redisConfig.port });
 
-// Create Docker executor instance
-const dockerExecutor = new DockerExecutor();
+// Create Simple executor instance
+const dockerExecutor = new SimpleExecutor();
 
 // Create Redis client for storing results
 const resultRedis = new Redis(REDIS_URL, {
@@ -101,10 +101,76 @@ worker.on('error', (err: any) => {
 });
 
 // Health check endpoint
-const healthServer = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
+const healthServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
   if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('OK');
+    try {
+      // Check Redis connection
+      await resultRedis.ping();
+      
+      // Check Docker connection
+      await dockerExecutor.getDockerInfo();
+      
+      // Get worker status
+      const isWorkerRunning = worker && !worker.closing;
+      
+      const healthStatus = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        services: {
+          redis: 'connected',
+          docker: 'connected',
+          worker: isWorkerRunning ? 'running' : 'stopped'
+        },
+        version: process.env.npm_package_version || '1.0.0'
+      };
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(healthStatus, null, 2));
+    } catch (error) {
+      const errorStatus = {
+        status: 'unhealthy',
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        services: {
+          redis: 'unknown',
+          docker: 'unknown',
+          worker: 'unknown'
+        }
+      };
+      
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(errorStatus, null, 2));
+    }
+  } else if (req.url === '/metrics') {
+    try {
+      const dockerInfo = await dockerExecutor.getDockerInfo();
+      const runningContainers = await dockerExecutor.getRunningContainers();
+      const images = await dockerExecutor.getImages();
+      
+      const metrics = {
+        docker: {
+          version: dockerInfo.ServerVersion,
+          containers: {
+            running: runningContainers.length,
+            total: dockerInfo.Containers
+          },
+          images: images.length,
+          memoryLimit: dockerInfo.MemTotal,
+          cpuCount: dockerInfo.NCPU
+        },
+        worker: {
+          uptime: process.uptime(),
+          memoryUsage: process.memoryUsage(),
+          nodeVersion: process.version
+        }
+      };
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(metrics, null, 2));
+    } catch (error) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }));
+    }
   } else {
     res.writeHead(404);
     res.end();
@@ -131,10 +197,49 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+// Periodic cleanup for Docker resources
+setInterval(async () => {
+  try {
+    console.log('Running periodic Docker cleanup...');
+    await dockerExecutor.pruneContainers();
+    console.log('Docker containers pruned successfully');
+  } catch (error) {
+    console.error('Failed to prune Docker containers:', error);
+  }
+}, 5 * 60 * 1000); // Every 5 minutes
+
+// Periodic image cleanup (less frequent)
+setInterval(async () => {
+  try {
+    console.log('Running periodic Docker image cleanup...');
+    await dockerExecutor.pruneImages();
+    console.log('Docker images pruned successfully');
+  } catch (error) {
+    console.error('Failed to prune Docker images:', error);
+  }
+}, 30 * 60 * 1000); // Every 30 minutes
+
 // Start the worker
 async function start() {
   console.log('Starting worker service...');
   console.log('Worker is ready to process jobs');
+  
+  // Pre-warm Docker images for better performance
+  console.log('Pre-warming Docker images...');
+  const commonImages = ['node:18-alpine', 'python:3.11-alpine', 'openjdk:17-alpine', 'gcc:alpine'];
+  
+  for (const image of commonImages) {
+    try {
+      // Try to inspect the image, this will pull it if not available
+      const docker = dockerExecutor as any;
+      if (docker.docker) {
+        await docker.docker.getImage(image).inspect();
+        console.log(`✅ Docker image ${image} ready`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Image ${image} not available locally, will be pulled on first use`);
+    }
+  }
 }
 
 start().catch((error) => {

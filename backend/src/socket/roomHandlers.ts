@@ -3,11 +3,13 @@ import { prisma } from '../utils/prisma';
 
 
 
-export const setupRoomHandlers = (io: Server, socket: AuthenticatedSocket, isUserInRoom: (userId: string, roomId: string) => Promise<boolean>) => {
+export const setupRoomHandlers = (io: Server, socket: AuthenticatedSocket, isUserInRoom: (userId: string, roomId: string) => Promise<boolean>, roomUsers: Map<string, Set<string>>) => {
   // Join a room
-  socket.on('room:join', async (data: { roomId: string }) => {
+  socket.on('room:join', async (data: { roomId: string; userId?: string; userName?: string }) => {
     try {
       const { roomId } = data;
+      console.log(`🔌🔌🔌 BACKEND: room:join handler called for roomId="${roomId}" by user="${socket.user?.name}"`);
+      console.log(`🔌🔌🔌 BACKEND: Full event data:`, data);
       const userId = socket.userId!;
 
       // Check if user is authorized to join this room
@@ -20,6 +22,13 @@ export const setupRoomHandlers = (io: Server, socket: AuthenticatedSocket, isUse
       // Join the socket room
       socket.join(roomId);
       console.log(`🔍 DEBUG: User ${socket.user?.name} joined socket room: ${roomId}`);
+
+      // CRITICAL FIX: Update roomUsers tracking
+      if (!roomUsers.has(roomId)) {
+        roomUsers.set(roomId, new Set());
+      }
+      roomUsers.get(roomId)!.add(userId);
+      console.log(`👥 User ${socket.user?.name} added to roomUsers Map for room ${roomId}`);
 
       // Get room data with current users
       const room = await prisma.room.findUnique({
@@ -93,6 +102,13 @@ export const setupRoomHandlers = (io: Server, socket: AuthenticatedSocket, isUse
 
       // Leave the socket room
       socket.leave(roomId);
+
+      // CRITICAL FIX: Update roomUsers tracking
+      const users = roomUsers.get(roomId);
+      if (users && users.has(userId)) {
+        users.delete(userId);
+        console.log(`👥 User ${socket.user?.name} removed from roomUsers Map for room ${roomId}`);
+      }
 
       // Notify other users in the room
       socket.to(roomId).emit('room:user-left', {

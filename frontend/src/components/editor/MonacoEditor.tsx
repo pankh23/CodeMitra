@@ -126,12 +126,30 @@ export function MonacoEditor({
   const { user } = useAuth();
   
   // Use collaborative editing hook
+  console.log(`🚀🚀🚀 MonacoEditor: About to call useCollaborativeEditor with roomId="${roomId}", initialCode length=${initialCode.length}, language="${language}"`);
+  console.log(`🚀🚀🚀 MonacoEditor: Component rendering at ${new Date().toISOString()}`);
+  
   const {
-    code,
+    code: collaborativeCode,
     cursors,
     handleCodeChange: collaborativeCodeChange,
     updateCursorPosition
   } = useCollaborativeEditor(roomId, initialCode, language);
+  
+  console.log(`🚀🚀🚀 MonacoEditor: useCollaborativeEditor hook completed, collaborativeCode length=${collaborativeCode.length}, collaborativeCodeChange=${!!collaborativeCodeChange}`);
+  
+  // Sync with external props (from layout component that receives socket events)
+  const [editorCode, setEditorCode] = useState(initialCode);
+  
+  // Update editor when external code changes (from socket events)
+  useEffect(() => {
+    if (initialCode !== editorCode) {
+      setEditorCode(initialCode);
+    }
+  }, [initialCode, editorCode]);
+  
+  // Use external code if available, otherwise use collaborative code
+  const currentCode = initialCode || collaborativeCode;
   
   // Local state for UI
   const [isLoading, setIsLoading] = useState(true);
@@ -151,10 +169,9 @@ export function MonacoEditor({
       
       // Only update if the change is from another user
       if (data.userId !== user.id) {
-        collaborativeCodeChange(data.code);
+        setEditorCode(data.code);
+        onCodeChange?.(data.code); // Update parent component
         if (data.language) {
-          // This part of the logic needs to be managed by the collaborative editor hook
-          // For now, we'll just log the language change
           console.log('🌐 Language change received from:', data.userName);
           toast.success(`Language changed to ${data.language} by ${data.userName}`);
         }
@@ -189,26 +206,58 @@ export function MonacoEditor({
       }
     };
 
-    // Listen for user leaving
-    const handleUserLeft = () => {
-      // Clear any user-specific data
-      console.log('👋 User left, clearing cursor positions');
+
+
+    // Listen for initial code sync when joining room
+    const handleCodeSync = (data: { code: string; language: string; input?: string; output?: string; roomId: string }) => {
+      console.log('🔄 MonacoEditor: Room code sync received:', data);
+      setEditorCode(data.code);
+      onCodeChange?.(data.code); // Update parent component
+    };
+
+    // Listen for user join/leave events for notifications
+    const handleUserJoined = (data: { user: any; roomId: string; timestamp: string }) => {
+      console.log('👤 User joined room:', data);
+      if (data.user && data.user.name) {
+        toast.success(`${data.user.name} joined the room!`);
+      }
+    };
+
+    const handleUserLeft = (data: { userId: string; userName: string; roomId: string; timestamp: string }) => {
+      console.log('👋 User left room:', data);
+      if (data.userName) {
+        toast.info(`${data.userName} left the room`);
+      }
+    };
+
+    // Listen for code execution events
+    const handleCodeExecutionStarted = (data: { userId: string; userName: string; language: string; roomId: string }) => {
+      console.log('▶️ Code execution started:', data);
+      if (data.userId !== user.id && data.userName) {
+        toast.info(`${data.userName} is running ${data.language} code...`);
+      }
     };
 
     // Add event listeners
+    socket.on('room:code-sync', handleCodeSync);
     socket.on('code:updated', handleCodeUpdate);
     socket.on('code:language-changed', handleLanguageChange);
     socket.on('cursor-position', handleCursorPosition);
-    socket.on('user-left', handleUserLeft);
+    socket.on('room:user-joined', handleUserJoined);
+    socket.on('room:user-left', handleUserLeft);
+    socket.on('code:execution-started', handleCodeExecutionStarted);
 
     // Cleanup event listeners
     return () => {
+      socket.off('room:code-sync', handleCodeSync);
       socket.off('code:updated', handleCodeUpdate);
       socket.off('code:language-changed', handleLanguageChange);
       socket.off('cursor-position', handleCursorPosition);
-      socket.off('user-left', handleUserLeft);
+      socket.off('room:user-joined', handleUserJoined);
+      socket.off('room:user-left', handleUserLeft);
+      socket.off('code:execution-started', handleCodeExecutionStarted);
     };
-  }, [socket, user, collaborativeCodeChange, updateCursorPosition]);
+  }, [socket, user, onCodeChange]);
 
   // Initialize Monaco Editor
   const handleEditorDidMount = useCallback((editor: MonacoEditorInstance, monacoInstance: MonacoInstance) => {
@@ -314,12 +363,21 @@ export function MonacoEditor({
 
   // Handle code change with proper type checking and parent callback
   const handleCodeChange = useCallback((value: string | undefined) => {
+    console.log(`🎯🎯🎯 MonacoEditor.handleCodeChange: CALLED! value length=${value?.length || 0}`);
+    console.log(`🎯🎯🎯 MonacoEditor.handleCodeChange: collaborativeCodeChange function exists=${!!collaborativeCodeChange}`);
+    console.log(`🎯🎯🎯 MonacoEditor.handleCodeChange: onCodeChange function exists=${!!onCodeChange}`);
+    
     if (value !== undefined) {
-      collaborativeCodeChange(value);
-      // Also call parent callback if provided
-      onCodeChange?.(value);
+      console.log(`🎯🎯🎯 MonacoEditor.handleCodeChange: Setting editor code and calling callbacks...`);
+      setEditorCode(value);
+      onCodeChange?.(value); // Update parent component
+      console.log(`🎯🎯🎯 MonacoEditor.handleCodeChange: About to call collaborativeCodeChange...`);
+      collaborativeCodeChange(value); // Also update collaborative state
+      console.log(`🎯🎯🎯 MonacoEditor.handleCodeChange: collaborativeCodeChange called successfully!`);
+    } else {
+      console.log(`🎯🎯🎯 MonacoEditor.handleCodeChange: Value is undefined - skipping`);
     }
-  }, [collaborativeCodeChange, onCodeChange]);
+  }, [onCodeChange, collaborativeCodeChange]);
 
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
@@ -338,7 +396,7 @@ export function MonacoEditor({
           height="100%"
           language={language}
           theme={currentTheme}
-          value={code}
+          value={currentCode}
           onChange={handleCodeChange}
           onMount={handleEditorDidMount}
           options={{

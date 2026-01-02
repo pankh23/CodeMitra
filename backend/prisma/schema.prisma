@@ -19,7 +19,6 @@ model User {
   // Relations
   ownedRooms Room[]     @relation("RoomOwner")
   roomUsers  RoomUser[]
-  chatMessages ChatMessage[]
   executionLogs ExecutionLog[]
   codeExecutions CodeExecution[]
 
@@ -44,7 +43,6 @@ model Room {
   ownerId     String
   owner       User         @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   users       RoomUser[]
-  chatMessages ChatMessage[]
   executionLogs ExecutionLog[]
   codeExecutions CodeExecution[]
 
@@ -66,20 +64,6 @@ model RoomUser {
   @@map("room_users")
 }
 
-model ChatMessage {
-  id        String   @id @default(uuid())
-  content   String
-  type      String   @default("text") // text, system, code
-  createdAt DateTime @default(now())
-
-  // Relations
-  userId String
-  roomId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
-
-  @@map("chat_messages")
-}
 
 model ExecutionLog {
   id        String   @id @default(uuid())

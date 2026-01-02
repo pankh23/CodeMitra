@@ -4,14 +4,14 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { validate, codeExecutionSchema } from '../utils/validation';
 import { Queue, QueueEvents } from 'bullmq';
-import { redisClient } from '../utils/redis';
+import { redisClient, bullMQRedisConfig } from '../utils/redis';
 import { v4 as uuidv4 } from 'uuid';
 
 const codeRoutes = express.Router();
 
 // Create BullMQ queue for code execution
 const codeExecutionQueue = new Queue('code-execution', {
-  connection: redisClient,
+  connection: bullMQRedisConfig,
   defaultJobOptions: {
     removeOnComplete: 10,
     removeOnFail: 50,
@@ -25,7 +25,7 @@ const codeExecutionQueue = new Queue('code-execution', {
 
 // Create QueueEvents for listening to job completion
 const queueEvents = new QueueEvents('code-execution', {
-  connection: redisClient,
+  connection: bullMQRedisConfig,
 });
 
 interface CodeExecutionRequest {

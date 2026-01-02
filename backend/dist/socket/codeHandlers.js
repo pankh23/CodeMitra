@@ -17,12 +17,17 @@ const codeExecutionQueue = new bullmq_1.Queue('code-execution', {
     },
 });
 exports.codeExecutionQueue = codeExecutionQueue;
-const setupCodeHandlers = (io, socket) => {
+const setupCodeHandlers = (io, socket, isUserInRoom) => {
+    console.log('🔧 Setting up code handlers for socket:', socket.id);
+    socket.onAny((eventName, ...args) => {
+        console.log(`🔍 DEBUG: Received event '${eventName}' on socket ${socket.id} with args:`, args);
+    });
     socket.on('code:update', async (data) => {
         try {
             const { roomId, code, language } = data;
             const userId = socket.userId;
-            console.log(`Code update from user ${socket.user?.name} in room ${roomId}`);
+            console.log(`🔍 DEBUG: Received code:update event from user ${socket.user?.name} in room ${roomId}`);
+            console.log(`🔍 DEBUG: Event data:`, data);
             const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('code:error', { message: 'You are not authorized to edit code in this room' });
@@ -55,6 +60,8 @@ const setupCodeHandlers = (io, socket) => {
         try {
             const { roomId, language } = data;
             const userId = socket.userId;
+            console.log(`🔍 DEBUG: Received code:language-change event from user ${socket.user?.name} in room ${roomId}`);
+            console.log(`🔍 DEBUG: Event data:`, data);
             const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('code:error', { message: 'You are not authorized to change language in this room' });

@@ -1,14 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupVideoHandlers = void 0;
-const index_1 = require("./index");
 const prisma_1 = require("../utils/prisma");
-const setupVideoHandlers = (io, socket) => {
+const setupVideoHandlers = (io, socket, isUserInRoom) => {
     socket.on('video:join', async (data) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('video:error', { message: 'You are not authorized to join video calls in this room' });
                 return;
@@ -60,7 +59,7 @@ const setupVideoHandlers = (io, socket) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -87,7 +86,7 @@ const setupVideoHandlers = (io, socket) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -114,7 +113,7 @@ const setupVideoHandlers = (io, socket) => {
         try {
             const { roomId, to, offer } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -133,7 +132,7 @@ const setupVideoHandlers = (io, socket) => {
         try {
             const { roomId, to, answer } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -152,7 +151,7 @@ const setupVideoHandlers = (io, socket) => {
         try {
             const { roomId, to, candidate } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -171,7 +170,7 @@ const setupVideoHandlers = (io, socket) => {
         try {
             const { roomId, status, details } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 return;
             }
@@ -199,7 +198,7 @@ const setupVideoHandlers = (io, socket) => {
         try {
             const { roomId, action } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('video:error', { message: 'You are not authorized to control recording in this room' });
                 return;

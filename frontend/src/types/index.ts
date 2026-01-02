@@ -23,7 +23,6 @@ export interface Room {
   ownerId: string;
   owner: User;
   users: RoomUser[];
-  chatMessages: ChatMessage[];
   executionLogs: ExecutionLog[];
 }
 
@@ -37,16 +36,6 @@ export interface RoomUser {
   room: Room;
 }
 
-export interface ChatMessage {
-  id: string;
-  content: string;
-  type: 'text' | 'system' | 'code';
-  createdAt: string;
-  userId: string;
-  roomId: string;
-  user: User;
-  room: Room;
-}
 
 export interface ExecutionLog {
   id: string;
@@ -87,20 +76,6 @@ export interface CodeEditorState {
   error: string | null;
 }
 
-export interface ChatState {
-  messages: ChatMessage[];
-  isLoading: boolean;
-  error: string | null;
-}
-
-export interface VideoCallState {
-  isCallActive: boolean;
-  localStream: MediaStream | null;
-  remoteStreams: Map<string, MediaStream>;
-  isMuted: boolean;
-  isVideoOff: boolean;
-  participants: User[];
-}
 
 export interface SocketEvents {
   // Room events
@@ -116,19 +91,6 @@ export interface SocketEvents {
   'code:execute': (data: { code: string; language: string; input: string; roomId: string }) => void;
   'code:execution-result': (data: { output: string; error?: string; executionTime: number; roomId: string }) => void;
   'code:execution-started': (data: { roomId: string }) => void;
-  
-  // Chat events
-  'chat:message': (data: { message: string; roomId: string; userId: string }) => void;
-  'chat:message-received': (data: { message: ChatMessage; roomId: string }) => void;
-  
-  // Video call events
-  'video:call-start': (data: { roomId: string; userId: string }) => void;
-  'video:call-end': (data: { roomId: string; userId: string }) => void;
-  'video:offer': (data: { offer: RTCSessionDescriptionInit; roomId: string; userId: string }) => void;
-  'video:answer': (data: { answer: RTCSessionDescriptionInit; roomId: string; userId: string }) => void;
-  'video:ice-candidate': (data: { candidate: RTCIceCandidate; roomId: string; userId: string }) => void;
-  'video:user-joined': (data: { userId: string; roomId: string }) => void;
-  'video:user-left': (data: { userId: string; roomId: string }) => void;
 }
 
 export interface ApiResponse<T = any> {
@@ -210,13 +172,3 @@ export interface ExecutionResult {
   status: 'completed' | 'failed' | 'timeout';
 }
 
-export interface WebRTCConfig {
-  iceServers: RTCIceServer[];
-}
-
-export interface PeerConnection {
-  id: string;
-  connection: RTCPeerConnection;
-  stream?: MediaStream;
-  isInitiator: boolean;
-}

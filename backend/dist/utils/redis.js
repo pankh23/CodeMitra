@@ -13,7 +13,9 @@ exports.redisClient = new ioredis_1.default(REDIS_URL, {
     lazyConnect: true,
     enableOfflineQueue: false,
     connectTimeout: 10000,
-    commandTimeout: 5000,
+    commandTimeout: 30000,
+    retryDelayOnFailover: 1000,
+    maxRetriesPerRequest: 3,
 });
 exports.redisClient.on('error', (err) => {
     console.error('Redis Client Error:', err);

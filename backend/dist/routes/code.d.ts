@@ -1,3 +1,3 @@
-declare const codeRoutes: import("express-serve-static-core").Router;
+declare const codeRoutes: any;
 export { codeRoutes };
 //# sourceMappingURL=code.d.ts.map

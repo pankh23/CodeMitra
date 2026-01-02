@@ -25,6 +25,7 @@ interface ExecutionResult {
 
 export class DockerExecutor {
   private docker: Docker;
+  private lastContainer: Docker.Container | null = null;
 
   constructor() {
     this.docker = new Docker({
@@ -66,6 +67,7 @@ export class DockerExecutor {
       });
 
       // Start container
+      this.lastContainer = container;
       await container.start();
 
       // Write code to container
@@ -122,6 +124,15 @@ export class DockerExecutor {
         }, request.timeout || config.timeout);
       });
 
+      // Get container stats for memory usage
+      let memoryUsed = 0;
+      try {
+        const stats = await container.stats({ stream: false });
+        memoryUsed = stats.memory_stats?.usage || 0;
+      } catch (error) {
+        console.warn('Failed to get container memory stats:', error);
+      }
+
       // Stop and remove container
       await container.stop();
       await container.remove();
@@ -137,7 +148,7 @@ export class DockerExecutor {
           output: stdout,
           exitCode: result.exitCode,
           executionTime,
-          memoryUsed: 0 // TODO: Implement memory monitoring
+          memoryUsed
         };
       } else {
         return {
@@ -148,13 +159,25 @@ export class DockerExecutor {
           output: stderr || 'Runtime error occurred',
           exitCode: result.exitCode,
           executionTime,
-          memoryUsed: 0,
+          memoryUsed,
           error: stderr || 'Runtime error'
         };
       }
 
     } catch (error: any) {
       console.error(`Execution failed:`, error);
+      
+      // Try to get memory stats even on error, if container was created
+      let memoryUsed = 0;
+      try {
+        if (this.lastContainer) {
+          const stats = await this.lastContainer.stats({ stream: false });
+          memoryUsed = stats.memory_stats?.usage || 0;
+        }
+      } catch (statsError) {
+        // Ignore stats errors in error handling
+      }
+      
       return {
         executionId: request.executionId,
         status: 'failed',
@@ -163,7 +186,7 @@ export class DockerExecutor {
         output: '',
         exitCode: -1,
         executionTime: Date.now() - startTime,
-        memoryUsed: 0,
+        memoryUsed,
         error: error.message || 'Execution failed'
       };
     }

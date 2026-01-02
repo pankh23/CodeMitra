@@ -1,19 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupRoomHandlers = void 0;
-const index_1 = require("./index");
 const prisma_1 = require("../utils/prisma");
-const setupRoomHandlers = (io, socket) => {
+const setupRoomHandlers = (io, socket, isUserInRoom) => {
     socket.on('room:join', async (data) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('room:error', { message: 'You are not authorized to join this room' });
                 return;
             }
             socket.join(roomId);
+            console.log(`🔍 DEBUG: User ${socket.user?.name} joined socket room: ${roomId}`);
             const room = await prisma_1.prisma.room.findUnique({
                 where: { id: roomId },
                 include: {
@@ -33,7 +33,7 @@ const setupRoomHandlers = (io, socket) => {
             socket.to(roomId).emit('room:user-joined', {
                 user: socket.user,
                 roomId,
-                timestamp: new Date()
+                timestamp: new Date().toISOString()
             });
             socket.emit('room:joined', {
                 room,
@@ -57,7 +57,7 @@ const setupRoomHandlers = (io, socket) => {
             io.to(roomId).emit('room:users', {
                 users: updatedUsers,
                 roomId,
-                timestamp: new Date()
+                timestamp: new Date().toISOString()
             });
             console.log(`User ${socket.user?.name} joined room ${roomId}`);
         }
@@ -116,7 +116,7 @@ const setupRoomHandlers = (io, socket) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('room:error', { message: 'You are not authorized to view this room' });
                 return;
@@ -160,7 +160,7 @@ const setupRoomHandlers = (io, socket) => {
         try {
             const { roomId } = data;
             const userId = socket.userId;
-            const isAuthorized = await (0, index_1.isUserInRoom)(userId, roomId);
+            const isAuthorized = await isUserInRoom(userId, roomId);
             if (!isAuthorized) {
                 socket.emit('room:error', { message: 'You are not authorized to view this room' });
                 return;

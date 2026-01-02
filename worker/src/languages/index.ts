@@ -1,4 +1,4 @@
-import { Language } from '@/types';
+import { Language } from '../types';
 
 export const SUPPORTED_LANGUAGES: { [key: string]: Language } = {
   javascript: {

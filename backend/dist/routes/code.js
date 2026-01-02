@@ -26,44 +26,43 @@ const codeExecutionQueue = new bullmq_1.Queue('code-execution', {
         },
     },
 });
+const queueEvents = new bullmq_1.QueueEvents('code-execution', {
+    connection: redis_1.redisClient,
+});
 const LANGUAGE_CONFIGS = {
     javascript: {
         extension: 'js',
         dockerImage: 'node:18-alpine',
-        command: 'node',
-        args: ['-e'],
-        timeout: 10000,
-        memoryLimit: 128 * 1024 * 1024,
+        runCommand: 'node main.js',
+        timeout: 30000,
+        memoryLimit: '256m',
         needsCompilation: false
     },
     python: {
         extension: 'py',
         dockerImage: 'python:3.11-alpine',
-        command: 'python3',
-        args: ['-c'],
-        timeout: 10000,
-        memoryLimit: 256 * 1024 * 1024,
+        runCommand: 'python main.py',
+        timeout: 30000,
+        memoryLimit: '256m',
         needsCompilation: false
     },
     java: {
         extension: 'java',
-        dockerImage: 'openjdk:17-alpine',
-        command: 'java',
-        args: ['-cp', '.', 'Main'],
-        timeout: 20000,
-        memoryLimit: 512 * 1024 * 1024,
-        needsCompilation: true,
-        compileCommand: 'javac'
+        dockerImage: 'eclipse-temurin:17-jdk',
+        compileCommand: 'javac Main.java',
+        runCommand: 'java Main',
+        timeout: 30000,
+        memoryLimit: '512m',
+        needsCompilation: true
     },
     cpp: {
         extension: 'cpp',
-        dockerImage: 'gcc:alpine',
-        command: './a.out',
-        args: [],
-        timeout: 15000,
-        memoryLimit: 256 * 1024 * 1024,
-        needsCompilation: true,
-        compileCommand: 'g++'
+        dockerImage: 'gcc:11-alpine',
+        compileCommand: 'g++ -std=c++17 -O2 -Wall -Wextra -o main main.cpp',
+        runCommand: './main',
+        timeout: 45000,
+        memoryLimit: '256m',
+        needsCompilation: true
     }
 };
 async function executeCodeWithQueue(code, language, input, config) {
@@ -74,19 +73,93 @@ async function executeCodeWithQueue(code, language, input, config) {
             language,
             code,
             input,
-            config,
+            timeout: config.timeout,
+            memoryLimit: config.memoryLimit,
             timestamp: Date.now()
         }, {
-            removeOnComplete: true,
-            removeOnFail: true
+            removeOnComplete: false,
+            removeOnFail: false,
+            attempts: 1,
+            delay: 0
         });
         console.log(`Code execution job ${job.id} added to queue`);
-        return {
-            success: true,
-            output: 'Code execution queued successfully. Check worker logs for results.',
-            executionTime: 0,
-            status: 'success'
-        };
+        try {
+            console.log(`Waiting for job ${job.id} to complete...`);
+            {
+                let attempts = 0;
+                const maxAttempts = 60;
+                while (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    const jobState = await job.getState();
+                    console.log(`Job ${job.id} state: ${jobState}`);
+                    if (jobState === 'completed') {
+                        const resultKey = `execution-result:${executionId}`;
+                        const resultStr = await redis_1.redisClient.get(resultKey);
+                        let result = null;
+                        if (resultStr) {
+                            try {
+                                result = JSON.parse(resultStr);
+                                console.log(`Job ${job.id} completed successfully with result from Redis:`, JSON.stringify(result, null, 2));
+                            }
+                            catch (parseError) {
+                                console.error(`Failed to parse result from Redis:`, parseError);
+                            }
+                        }
+                        else {
+                            console.log(`No result found in Redis for key: ${resultKey}, falling back to job.returnvalue`);
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            result = job.returnvalue;
+                            console.log(`Job ${job.id} completed with fallback result:`, JSON.stringify(result, null, 2));
+                        }
+                        return {
+                            success: result?.status === 'completed',
+                            output: result?.output || result?.stdout || '',
+                            error: result?.error || result?.stderr || '',
+                            executionTime: result?.executionTime || 0,
+                            memoryUsed: result?.memoryUsage || result?.memoryUsed || 0,
+                            compilationTime: result?.compilationTime || 0,
+                            status: result?.status || 'failed'
+                        };
+                    }
+                    if (jobState === 'failed') {
+                        const failedReason = job.failedReason;
+                        console.error(`Job ${job.id} failed:`, failedReason);
+                        return {
+                            success: false,
+                            output: '',
+                            error: failedReason || 'Code execution failed',
+                            executionTime: 0,
+                            memoryUsed: 0,
+                            compilationTime: 0,
+                            status: 'runtime_error'
+                        };
+                    }
+                    attempts++;
+                }
+                console.error(`Job ${job.id} timed out after ${maxAttempts * 500}ms`);
+                return {
+                    success: false,
+                    output: '',
+                    error: 'Code execution timed out',
+                    executionTime: 0,
+                    memoryUsed: 0,
+                    compilationTime: 0,
+                    status: 'timeout'
+                };
+            }
+        }
+        catch (waitError) {
+            console.error(`Job ${job.id} wait failed:`, waitError);
+            return {
+                success: false,
+                output: '',
+                error: waitError.message || 'Code execution failed',
+                executionTime: 0,
+                memoryUsed: 0,
+                compilationTime: 0,
+                status: 'system_error'
+            };
+        }
     }
     catch (error) {
         console.error('Code execution failed:', error);
@@ -143,8 +216,13 @@ codeRoutes.post('/execute', auth_1.authenticate, (0, validation_1.validate)(vali
             }
         });
         return res.json({
-            success: true,
-            result
+            success: result.success,
+            output: result.output,
+            error: result.error,
+            executionTime: result.executionTime,
+            memoryUsed: result.memoryUsed,
+            compilationTime: result.compilationTime,
+            status: result.status
         });
     }
     catch (error) {

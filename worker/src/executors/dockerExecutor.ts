@@ -8,7 +8,7 @@ import {
   ExecutionRequest, 
   ExecutionResult, 
   CompilationResult 
-} from '@/types';
+} from '../types';
 import { 
   logger, 
   createTempDirectory, 
@@ -23,12 +23,12 @@ import {
   isMemoryError, 
   sanitizeError, 
   getWorkerConfig 
-} from '@/utils';
+} from '../utils';
 import { 
   getLanguageById, 
   getFileName, 
   extractClassName 
-} from '@/languages';
+} from '../languages';
 
 export class DockerExecutor {
   private docker: Docker;

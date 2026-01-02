@@ -25,8 +25,7 @@ userRoutes.get('/profile',
         _count: {
           select: {
             ownedRooms: true,
-            roomUsers: true,
-            chatMessages: true
+            roomUsers: true
           }
         }
       }

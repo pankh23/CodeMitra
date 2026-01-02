@@ -8,10 +8,8 @@ import { getBoilerplate } from '@/lib/codeBoilerplates';
 import { useAuth } from '@/lib/auth';
 import { useRoom } from '@/lib/room';
 import { useSocket } from '@/lib/socket';
-import { EnhancedChatInterface } from '@/components/chat/EnhancedChatInterface';
-import { EnhancedVideoCall } from '@/components/video/EnhancedVideoCall';
 import { useRouter } from 'next/navigation';
-import { GripVertical, GripHorizontal, MessageSquare, Video, Code } from 'lucide-react';
+import { GripHorizontal } from 'lucide-react';
 
 interface NewCollaborativeLayoutProps {
   roomId: string;
@@ -28,6 +26,8 @@ export function NewCollaborativeLayout({
   onCodeChange,
   onLanguageChange
 }: NewCollaborativeLayoutProps) {
+
+  console.log(`🏗️🏗️🏗️ NewCollaborativeLayout: Rendering with roomId="${roomId}", initialLanguage="${initialLanguage}", initialCode length=${initialCode.length}`);
   const { user } = useAuth();
   const { currentRoom, leaveRoom } = useRoom();
   const { socket, isConnected } = useSocket();
@@ -37,14 +37,11 @@ export function NewCollaborativeLayout({
   const [language, setLanguage] = useState(initialLanguage);
   const [isExecuting, setIsExecuting] = useState(false);
   
-  // Panel sizes (as percentages)
-  const [leftSidebarWidth, setLeftSidebarWidth] = useState(20); // Chat sidebar
-  const [rightSidebarWidth, setRightSidebarWidth] = useState(25); // Video sidebar
+  // Editor and execution panel heights
   const [editorHeight, setEditorHeight] = useState(65); // Editor takes 65% of center area height
   
-  // Panel visibility states
-  const [showLeftSidebar, setShowLeftSidebar] = useState(true);
-  const [showRightSidebar, setShowRightSidebar] = useState(true);
+  // CRITICAL FIX: User presence tracking
+  const [roomUsers, setRoomUsers] = useState<{ id: string; name: string; email: string; avatar?: string; role: string; joinedAt: string }[]>([]);
 
   // Load boilerplate code only when there's no existing code for initial load
   useEffect(() => {
@@ -81,20 +78,6 @@ export function NewCollaborativeLayout({
       });
     }
   }, [socket, isConnected, currentRoom, language, onCodeChange]);
-
-  // Handle language changes
-  const handleLanguageChange = useCallback((newLanguage: string) => {
-    setLanguage(newLanguage);
-    onLanguageChange?.(newLanguage);
-    
-    // Sync language change with other users
-    if (socket && isConnected && currentRoom) {
-      socket.emit('code:language-change', {
-        roomId: currentRoom.id,
-        language: newLanguage
-      });
-    }
-  }, [socket, isConnected, currentRoom, onLanguageChange]);
 
   // Handle execution start
   const handleExecutionStart = useCallback(() => {
@@ -164,6 +147,36 @@ export function NewCollaborativeLayout({
     };
   }, [socket, isConnected, currentRoom, user?.id, onCodeChange, onLanguageChange]);
 
+  // CRITICAL FIX: Listen for user presence updates
+  useEffect(() => {
+    if (!socket || !isConnected || !currentRoom) return;
+
+    const handleRoomUsers = (data: { users: { id: string; name: string; email: string; avatar?: string; role: string; joinedAt: string }[]; roomId: string; timestamp: string }) => {
+      console.log('Room users updated:', data.users);
+      setRoomUsers(data.users);
+    };
+
+    const handleUserJoined = (data: { user: { id: string; name: string; email: string; avatar?: string }; roomId: string; timestamp: string }) => {
+      console.log('User joined room:', data.user.name);
+      // The room:users event will handle the actual user list update
+    };
+
+    const handleUserLeft = (data: { userId: string; userName: string; roomId: string; timestamp: string }) => {
+      console.log('User left room:', data.userName);
+      // The room:users event will handle the actual user list update
+    };
+
+    socket.on('room:users', handleRoomUsers);
+    socket.on('room:user-joined', handleUserJoined);
+    socket.on('room:user-left', handleUserLeft);
+
+    return () => {
+      socket.off('room:users', handleRoomUsers);
+      socket.off('room:user-joined', handleUserJoined);
+      socket.off('room:user-left', handleUserLeft);
+    };
+  }, [socket, isConnected, currentRoom]);
+
   // Join room when component mounts
   useEffect(() => {
     if (socket && isConnected && currentRoom) {
@@ -187,9 +200,6 @@ export function NewCollaborativeLayout({
     }
   }, [currentRoom, socket, leaveRoom, router]);
 
-  // Calculate dynamic widths
-  const centerWidth = 100 - (showLeftSidebar ? leftSidebarWidth : 0) - (showRightSidebar ? rightSidebarWidth : 0);
-
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
       {/* Clean Navbar - Fixed positioned */}
@@ -203,80 +213,24 @@ export function NewCollaborativeLayout({
       {/* Main Content Area - Starts below navbar */}
       <div className="flex-1 overflow-hidden flex" style={{ marginTop: '4rem' }}>
         
-        {/* Left Sidebar - Chat */}
-        {showLeftSidebar && (
-          <>
-            <div 
-              className="bg-gray-800 border-r border-gray-700 flex flex-col"
-              style={{ width: `${leftSidebarWidth}%` }}
-            >
-              {/* Chat Header */}
-              <div className="p-3 border-b border-gray-700 bg-gray-750">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className="w-5 h-5 text-blue-400" />
-                    <h3 className="text-sm font-medium text-white">Team Chat</h3>
-                  </div>
-                  <button
-                    onClick={() => setShowLeftSidebar(false)}
-                    className="text-gray-400 hover:text-white text-xs"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              
-              {/* Chat Content */}
-              <div className="flex-1 overflow-hidden">
-                <EnhancedChatInterface roomId={currentRoom?.id || ''} />
-              </div>
-            </div>
-
-            {/* Left Resize Handle */}
-            <div
-              className="w-1 bg-gray-600 hover:bg-blue-500 cursor-ew-resize relative group"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const startX = e.clientX;
-                const startWidth = leftSidebarWidth;
-                
-                const handleMouseMove = (e: MouseEvent) => {
-                  const deltaX = e.clientX - startX;
-                  const containerWidth = window.innerWidth;
-                  const deltaPercent = (deltaX / containerWidth) * 100;
-                  const newWidth = Math.max(15, Math.min(40, startWidth + deltaPercent));
-                  setLeftSidebarWidth(newWidth);
-                };
-                
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-                
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-            >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <GripVertical className="w-4 h-4 text-gray-400 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </div>
-          </>
-        )}
-
         {/* Center Area - Editor + Execution Panel */}
-        <div 
-          className="flex flex-col bg-gray-800"
-          style={{ width: `${centerWidth}%` }}
-        >
+        <div className="flex flex-col bg-gray-800 w-full">
           {/* Code Editor */}
           <div 
             className="border-b border-gray-700 relative"
             style={{ height: `${editorHeight}%` }}
           >
+            {/* CRITICAL FIX: User count display */}
+            <div className="absolute top-4 right-4 z-10 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+              <span className="text-sm text-gray-300">
+                {roomUsers.length} user{roomUsers.length !== 1 ? 's' : ''} online
+              </span>
+            </div>
+            
             <div className="h-full">
               <MonacoEditor
-                roomId={currentRoom?.id || ''}
+                roomId={roomId}
                 language={language}
                 initialCode={code}
                 onCodeChange={handleCodeChange}
@@ -330,92 +284,6 @@ export function NewCollaborativeLayout({
             </div>
           </div>
         </div>
-
-        {/* Right Sidebar - Video Only */}
-        {showRightSidebar && (
-          <>
-            {/* Right Resize Handle */}
-            <div
-              className="w-1 bg-gray-600 hover:bg-blue-500 cursor-ew-resize relative group"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const startX = e.clientX;
-                const startWidth = rightSidebarWidth;
-                
-                const handleMouseMove = (e: MouseEvent) => {
-                  const deltaX = startX - e.clientX; // Reversed for right side
-                  const containerWidth = window.innerWidth;
-                  const deltaPercent = (deltaX / containerWidth) * 100;
-                  const newWidth = Math.max(15, Math.min(40, startWidth + deltaPercent));
-                  setRightSidebarWidth(newWidth);
-                };
-                
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-                
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-            >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <GripVertical className="w-4 h-4 text-gray-400 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </div>
-
-            <div 
-              className="bg-gray-800 border-l border-gray-700 flex flex-col"
-              style={{ width: `${rightSidebarWidth}%` }}
-            >
-              {/* Video Header */}
-              <div className="p-3 border-b border-gray-700 bg-gray-750">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Video className="w-5 h-5 text-green-400" />
-                    <h3 className="text-sm font-medium text-white">Video Call</h3>
-                  </div>
-                  <button
-                    onClick={() => setShowRightSidebar(false)}
-                    className="text-gray-400 hover:text-white text-xs"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              
-              {/* Video Content */}
-              <div className="flex-1 overflow-hidden">
-                <EnhancedVideoCall />
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Toggle Buttons for Hidden Sidebars */}
-      <div className="fixed left-4 top-20 z-50 flex flex-col space-y-2">
-        {!showLeftSidebar && (
-          <button
-            onClick={() => setShowLeftSidebar(true)}
-            className="bg-gray-800 border border-gray-600 text-white p-2 rounded-md hover:bg-gray-700 transition-colors"
-            title="Show Chat"
-          >
-            <MessageSquare className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-
-      <div className="fixed right-4 top-20 z-50 flex flex-col space-y-2">
-        {!showRightSidebar && (
-          <button
-            onClick={() => setShowRightSidebar(true)}
-            className="bg-gray-800 border border-gray-600 text-white p-2 rounded-md hover:bg-gray-700 transition-colors"
-            title="Show Video Call"
-          >
-            <Video className="w-4 h-4" />
-          </button>
-        )}
       </div>
     </div>
   );

@@ -111,15 +111,6 @@ roomRoutes.get('/:id',
               select: { id: true, name: true, email: true, avatar: true }
             }
           }
-        },
-        chatMessages: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, avatar: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 50
         }
       }
     });

@@ -1,4 +1,3 @@
-import { Server } from 'socket.io';
-import { AuthenticatedSocket } from './index';
-export declare const setupVideoHandlers: (io: Server, socket: AuthenticatedSocket) => void;
+import { AuthenticatedSocket, Server } from './types';
+export declare const setupVideoHandlers: (io: Server, socket: AuthenticatedSocket, isUserInRoom: (userId: string, roomId: string) => Promise<boolean>) => void;
 //# sourceMappingURL=videoHandlers.d.ts.map

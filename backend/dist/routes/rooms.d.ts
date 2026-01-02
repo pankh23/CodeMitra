@@ -1,3 +1,3 @@
-declare const roomRoutes: import("express-serve-static-core").Router;
+declare const roomRoutes: any;
 export { roomRoutes };
 //# sourceMappingURL=rooms.d.ts.map
