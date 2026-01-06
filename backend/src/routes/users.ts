@@ -9,7 +9,7 @@ const userRoutes = express.Router();
 
 // Get user profile
 userRoutes.get('/profile',
-  authenticate,
+  authenticate,f
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!.id;
 
