@@ -1,13 +1,14 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './auth';
 import toast from 'react-hot-toast';
 
-export interface SocketContextType {
+interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
+<<<<<<< HEAD
   joinRoom: (roomId: string) => void;
   leaveRoom: (roomId: string) => void;
   updateCode: (roomId: string, code: string, language?: string) => void;
@@ -15,40 +16,66 @@ export interface SocketContextType {
   updateInput: (roomId: string, input: string) => void;
   updateCursor: (roomId: string, position: { line: number; column: number }) => void;
   updateSelection: (roomId: string, selection: any) => void;
+=======
+  connectSocket: () => void;
+  disconnectSocket: () => void;
+>>>>>>> 300446fa250e6096c7b559e094fa5460547acb15
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001';
-
 export function SocketProvider({ children }: { children: ReactNode }) {
+  const { user, token, logout } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const { token, user } = useAuth();
 
-  useEffect(() => {
-    if (token && user) {
-      const newSocket = io(SOCKET_URL, {
-        auth: { token },
-        timeout: 10000,
-        retries: 3,
-      });
+  const connectSocket = useCallback(() => {
+    if (socket && socket.connected) {
+      console.log('Socket already connected');
+      return;
+    }
+    
+    if (!token) {
+      console.warn('No authentication token available for socket connection');
+      return;
+    }
+
+    // Prevent socket connection during build time
+    if (typeof window === 'undefined' || process.env.DISABLE_SOCKET_CONNECTION === 'true') {
+      console.warn('Socket connection skipped during build time');
+      return;
+    }
+
+    console.log('Attempting to connect socket...');
+        const newSocket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000', {
+      auth: { token },
+      transports: ['websocket', 'polling']
+    });
 
       newSocket.on('connect', () => {
-        console.log('Connected to socket server');
+      console.log('Socket connected:', newSocket.id);
         setIsConnected(true);
+      toast.success('Connected to real-time server!');
       });
 
-      newSocket.on('disconnect', () => {
-        console.log('Disconnected from socket server');
+    newSocket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
         setIsConnected(false);
-      });
+      toast.error(`Disconnected from real-time server: ${reason}`);
+      
+      if (reason === 'io server disconnect' || reason === 'unauthorized') {
+        // Server initiated disconnect due to invalid token or other auth issue
+        logout();
+        toast.error('Authentication expired. Please log in again.');
+      }
+    });
 
-      newSocket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-        toast.error('Connection failed. Please try again.');
-      });
+    newSocket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message);
+      toast.error(`Real-time connection error: ${err.message}`);
+    });
 
+<<<<<<< HEAD
       // Room event listeners
       newSocket.on('room:joined', (data) => {
         console.log('Joined room:', data);
@@ -202,23 +229,26 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       newSocket.on('video:error', (data) => {
         console.error('Video error:', data);
         toast.error(data.message || 'Video error occurred');
+=======
+    newSocket.on('error', (error) => {
+      console.error('Socket error:', error);
+      toast.error(`Server error: ${error.message || 'Unknown error'}`);
+>>>>>>> 300446fa250e6096c7b559e094fa5460547acb15
       });
 
       setSocket(newSocket);
+  }, [token, logout, socket]);
 
-      return () => {
-        newSocket.close();
-      };
-    } else {
-      // Clean up socket if no token
+  const disconnectSocket = useCallback(() => {
       if (socket) {
-        socket.close();
+      console.log('Disconnecting socket...');
+      socket.disconnect();
         setSocket(null);
         setIsConnected(false);
       }
-    }
-  }, [token, user]);
+  }, [socket]);
 
+<<<<<<< HEAD
   // Room methods
   const joinRoom = (roomId: string) => {
     if (socket && user) {
@@ -286,6 +316,26 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   };
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
+=======
+  useEffect(() => {
+    if (user && token && !socket) {
+      connectSocket();
+    }
+
+    // Clean up on component unmount
+    return () => {
+    if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [user, token, socket, connectSocket]);
+
+  return (
+    <SocketContext.Provider value={{ socket, isConnected, connectSocket, disconnectSocket }}>
+      {children}
+    </SocketContext.Provider>
+  );
+>>>>>>> 300446fa250e6096c7b559e094fa5460547acb15
 }
 
 export function useSocket() {

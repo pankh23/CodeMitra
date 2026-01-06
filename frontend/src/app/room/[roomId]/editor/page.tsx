@@ -1,106 +1,34 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { useRoom } from '@/lib/room';
-import { NewCollaborativeLayout } from '@/components/layout/NewCollaborativeLayout';
-import { getBoilerplate } from '@/lib/codeBoilerplates';
+import { SocketProvider } from '@/lib/socket';
+import CollaborativeEditor from '@/components/editor/CollaborativeEditor';
 
-export default function RoomEditorPage() {
-  const params = useParams();
-  const router = useRouter();
+export default function RoomEditorPage({ params }: { params: { roomId: string } }) {
   const { user, isLoading } = useAuth();
-  const { currentRoom, joinRoom, isLoading: roomLoading } = useRoom();
-  const [isJoining, setIsJoining] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Editor state - will be updated from room data
-  const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('javascript');
-
-  const roomId = params.roomId as string;
-
-  // Handle room joining
-  const handleJoinRoom = useCallback(async () => {
-    if (!user || !roomId) return;
-    
-    try {
-      setIsJoining(true);
-      setError(null);
-      
-      await joinRoom(roomId, '', router);
-      
-    } catch (error: unknown) {
-      console.error('Failed to join room:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to join room';
-      setError(errorMessage);
-    } finally {
-      setIsJoining(false);
-    }
-  }, [user, roomId, joinRoom, router]);
+  const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/');
-      return;
     }
+  }, [user, isLoading, router]);
 
-    if (user && roomId && !currentRoom) {
-      handleJoinRoom();
-    }
-  }, [user, isLoading, roomId, currentRoom, router, handleJoinRoom]);
-
-  // Update local state when room data is loaded
-  useEffect(() => {
-    if (currentRoom) {
-      setLanguage(currentRoom.language || 'javascript');
-      setCode(currentRoom.code || '');
-      
-      // Load boilerplate code only if room has no existing code
-      if (!currentRoom.code || currentRoom.code.trim() === '') {
-        const boilerplate = getBoilerplate(currentRoom.language || 'javascript');
-        if (boilerplate) {
-          setCode(boilerplate.code);
-        }
-      }
-    }
-  }, [currentRoom]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Reset all state when component unmounts
-      setCode('');
-      setLanguage('javascript');
-    };
-  }, []);
-
-  const handleCodeChange = useCallback((value: string) => {
-    setCode(value);
-  }, []);
-
-  const handleLanguageChange = useCallback((newLanguage: string) => {
-    setLanguage(newLanguage);
-  }, []);
-
-  // Loading state
-  if (isLoading || roomLoading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading collaborative environment...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  // Authentication check
   if (!user) {
     return null;
   }
 
+<<<<<<< HEAD
   // Error state
   if (error) {
     return (
@@ -149,15 +77,12 @@ export default function RoomEditorPage() {
 
   console.log(`📄📄📄 RoomEditorPage: Rendering with roomId param="${roomId}", currentRoom.id="${currentRoom.id}", user="${user?.name}"`);
   
+=======
+>>>>>>> 300446fa250e6096c7b559e094fa5460547acb15
   return (
-    <div className="h-screen">
-      <NewCollaborativeLayout
-        roomId={currentRoom.id}
-        initialLanguage={language}
-        initialCode={code}
-        onCodeChange={handleCodeChange}
-        onLanguageChange={handleLanguageChange}
-      />
-    </div>
+    <SocketProvider>
+      <CollaborativeEditor roomId={params.roomId} />
+    </SocketProvider>
   );
 }
+
